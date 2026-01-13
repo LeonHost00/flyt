@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logga in - Flyt</title>
+    <link rel="stylesheet" href="theme.css">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * AUTH PAGE LAYOUT - Helper Popup Style
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        html, body {
+            height: 100%;
+            max-height: 100%;
+            overflow: hidden;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+            border: none;
+            box-shadow: none;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * CUSTOM TITLE BAR (Frameless Window)
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .title-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 36px;
+            padding: 0 var(--spacing-md) 0 var(--spacing-lg);
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-subtle);
+            -webkit-app-region: drag;
+            flex-shrink: 0;
+            user-select: none;
+        }
+        
+        .title-bar-left {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+        
+        .title-bar-logo {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+        }
+        
+        .title-bar-logo .logo-icon {
+            width: 20px;
+            height: 20px;
+            background: var(--gradient-ai);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .title-bar-logo .logo-icon svg {
+            width: 12px;
+            height: 12px;
+            color: white;
+        }
+        
+        .title-bar-controls {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            -webkit-app-region: no-drag;
+        }
+        
+        .title-bar-btn {
+            width: 32px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+        }
+        
+        .title-bar-btn:hover {
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+        }
+        
+        .title-bar-btn.close-btn:hover {
+            background: rgba(var(--color-error-rgb), 0.8);
+            color: white;
+        }
+        
+        .title-bar-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+        
+        .auth-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            height: 100%;
+        }
+
+        .auth-card {
+            background: transparent;
+            padding: var(--spacing-xl);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * LOGO
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .logo {
+            text-align: center;
+            margin-bottom: var(--spacing-xl);
+            padding-top: 10px;
+        }
+
+        .logo h1 {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-bold);
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo p {
+            color: var(--text-secondary);
+            font-size: var(--font-size-sm);
+            margin-top: 2px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * TABS
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .tabs {
+            display: flex;
+            margin-bottom: var(--spacing-lg);
+            background: var(--surface-primary);
+            border-radius: var(--radius-xl);
+            padding: 3px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            text-align: center;
+            cursor: pointer;
+            border-radius: var(--radius-lg);
+            font-weight: var(--font-weight-medium);
+            font-size: var(--font-size-sm);
+            transition: all var(--transition-slow);
+            color: var(--text-secondary);
+        }
+
+        .tab.active {
+            background: var(--gradient-primary);
+            color: var(--text-primary);
+        }
+
+        .tab:not(.active):hover {
+            color: var(--text-primary);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * FORMS
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .form-container {
+            display: none;
+        }
+
+        .form-container.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px var(--spacing-lg);
+            background: var(--surface-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            font-size: var(--font-size-base);
+            color: var(--text-primary);
+            transition: all var(--transition-slow);
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--color-accent-cta);
+            background: var(--surface-elevated);
+            box-shadow: 0 0 0 2px rgba(var(--color-accent-cta-rgb), 0.15);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 10px var(--spacing-xl);
+            background: var(--gradient-cta);
+            border: none;
+            border-radius: var(--radius-xl);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-on-accent);
+            cursor: pointer;
+            transition: all var(--transition-slow);
+            margin-top: var(--spacing-sm);
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-cta);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: var(--spacing-sm);
+        }
+
+        .forgot-password a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--font-size-xs);
+            transition: color var(--transition-slow);
+        }
+
+        .forgot-password a:hover {
+            color: var(--color-accent-cta);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * MESSAGES
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .message {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--spacing-md);
+            font-size: var(--font-size-sm);
+            display: none;
+        }
+
+        .message.error {
+            display: block;
+            background: rgba(var(--color-error-rgb), 0.15);
+            border: 1px solid rgba(var(--color-error-rgb), 0.3);
+            color: var(--color-accent-alert-light);
+        }
+
+        .message.success {
+            display: block;
+            background: rgba(var(--color-success-rgb), 0.15);
+            border: 1px solid rgba(var(--color-success-rgb), 0.3);
+            color: var(--color-success-light);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-default);
+            border-radius: var(--radius-full);
+            border-top-color: var(--text-on-accent);
+            animation: spin 0.8s linear infinite;
+            margin-right: var(--spacing-md);
+            vertical-align: middle;
+        }
+
+        .password-requirements {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            margin-top: var(--spacing-xs);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * RESET PASSWORD MODAL
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            align-items: center;
+            justify-content: center;
+            z-index: var(--z-dropdown);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-4xl);
+            padding: var(--spacing-4xl);
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .modal h3 {
+            margin-bottom: 10px;
+            font-size: var(--font-size-xl);
+            color: var(--text-primary);
+        }
+
+        .modal p {
+            color: var(--text-secondary);
+            font-size: var(--font-size-base);
+            margin-bottom: var(--spacing-2xl);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: var(--spacing-2xl);
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px var(--spacing-lg);
+            border-radius: var(--radius-xl);
+            font-weight: var(--font-weight-medium);
+            cursor: pointer;
+            transition: all var(--transition-slow);
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-buttons .submit-btn {
+            margin-top: 0;
+        }
+
+        .modal-buttons .cancel-btn {
+            background: var(--surface-secondary);
+            border: 1px solid var(--border-default);
+            color: var(--text-primary);
+        }
+
+        .modal-buttons .cancel-btn:hover {
+            background: var(--surface-elevated);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * DIVIDER
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: var(--spacing-md) 0;
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .divider span {
+            padding: 0 var(--spacing-md);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * GOOGLE BUTTON
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .google-btn {
+            width: 100%;
+            padding: 10px var(--spacing-xl);
+            background: var(--surface-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-xl);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+            transition: all var(--transition-slow);
+        }
+
+        .google-btn:hover {
+            background: var(--surface-elevated);
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .google-btn:active {
+            transform: translateY(0);
+        }
+
+        .google-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .google-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .google-btn .google-icon path:nth-child(1) {
+            fill: #4285F4;
+        }
+        .google-btn .google-icon path:nth-child(2) {
+            fill: #34A853;
+        }
+        .google-btn .google-icon path:nth-child(3) {
+            fill: #FBBC05;
+        }
+        .google-btn .google-icon path:nth-child(4) {
+            fill: #EA4335;
+        }
+    </style>
+</head>
+<body>
+    <!-- Custom Title Bar (Frameless Window) -->
+    <div class="title-bar">
+        <div class="title-bar-left">
+            <div class="title-bar-logo">
+                <img src="assets/logo.svg" alt="Flyt Logo" style="width: 20px; height: 20px; margin-right: 8px;">
+                Flyt
+            </div>
+        </div>
+        <div class="title-bar-controls">
+            <button class="title-bar-btn minimize-btn" id="minimize-btn" title="Minimera">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+                </svg>
+            </button>
+            <button class="title-bar-btn close-btn" id="close-btn" title="Stäng">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <div class="auth-wrapper">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="logo">
+                <img src="assets/name.svg" alt="Flyt" style="width: 180px; margin-bottom: 10px;">
+                <p>Välkommen! Logga in för att fortsätta.</p>
+            </div>
+
+            <div class="tabs">
+                <div class="tab active" data-tab="login">Logga in</div>
+                <div class="tab" data-tab="signup">Registrera</div>
+            </div>
+
+            <div id="message" class="message"></div>
+
+            <!-- Login Form -->
+            <div id="login-form" class="form-container active">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="login-email">E-post</label>
+                        <input type="email" id="login-email" placeholder="Ange din e-post" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Lösenord</label>
+                        <input type="password" id="login-password" placeholder="Ange ditt lösenord" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="submit-btn" id="login-btn">Logga in</button>
+                </form>
+                <div class="forgot-password">
+                    <a href="#" id="forgot-link">Glömt ditt lösenord?</a>
+                </div>
+
+                <div class="divider"><span>eller</span></div>
+                
+                <button class="google-btn" id="google-login-btn">
+                    <svg class="google-icon" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Fortsätt med Google
+                </button>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signup-form" class="form-container">
+                <form id="signupForm">
+                    <div class="form-group">
+                        <label for="signup-email">E-post</label>
+                        <input type="email" id="signup-email" placeholder="Ange din e-post" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-password">Lösenord</label>
+                        <input type="password" id="signup-password" placeholder="Skapa ett lösenord" required autocomplete="new-password" minlength="6">
+                        <p class="password-requirements">Måste vara minst 6 tecken</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-confirm">Bekräfta lösenord</label>
+                        <input type="password" id="signup-confirm" placeholder="Bekräfta ditt lösenord" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="submit-btn" id="signup-btn">Skapa konto</button>
+                </form>
+
+                <div class="divider"><span>eller</span></div>
+                
+                <button class="google-btn" id="google-signup-btn">
+                    <svg class="google-icon" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Registrera med Google
+                </button>
+            </div>
+        </div>
+    </div>
+    </div><!-- End auth-wrapper -->
+
+    <!-- Reset Password Modal -->
+    <div id="reset-modal" class="modal-overlay">
+        <div class="modal">
+            <h3>Återställ lösenord</h3>
+            <p>Ange din e-postadress så skickar vi en länk för att återställa ditt lösenord.</p>
+            <form id="resetForm">
+                <div class="form-group">
+                    <input type="email" id="reset-email" placeholder="Ange din e-post" required>
+                </div>
+                <div id="reset-message" class="message"></div>
+                <div class="modal-buttons">
+                    <button type="button" class="cancel-btn" id="reset-cancel">Avbryt</button>
+                    <button type="submit" class="submit-btn">Skicka återställningslänk</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="auth-renderer.js"></script>
+</body>
+</html>

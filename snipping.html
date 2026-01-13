@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="sv">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klippverktyg</title>
+    <link rel="stylesheet" href="theme.css">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * SNIPPING TOOL OVERLAY
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            cursor: crosshair;
+            background: transparent;
+        }
+
+        body {
+            position: relative;
+        }
+
+        #screenshot-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+            transition: background 0.2s ease;
+        }
+
+        #overlay.selecting {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * SELECTION - with satisfying effects
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        #selection {
+            position: absolute;
+            border: 2px solid var(--color-primary-light);
+            background: transparent;
+            box-shadow:
+                0 0 0 9999px rgba(0, 0, 0, 0.5),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            display: none;
+            pointer-events: none;
+            transition: box-shadow 0.15s ease;
+        }
+
+        #selection.active {
+            border-color: var(--color-primary);
+            box-shadow:
+                0 0 0 9999px rgba(0, 0, 0, 0.55),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+                0 0 20px rgba(var(--color-primary-rgb, 99, 102, 241), 0.4);
+        }
+
+        #selection.complete {
+            animation: selectionPulse 0.4s ease-out;
+            border-color: var(--color-success, #10b981);
+            box-shadow:
+                0 0 0 9999px rgba(0, 0, 0, 0.55),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+                0 0 25px rgba(16, 185, 129, 0.5);
+        }
+
+        @keyframes selectionPulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.005);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* Corner handles for visual feedback */
+        #selection::before,
+        #selection::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: var(--color-primary-light);
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        #selection::before {
+            top: -4px;
+            left: -4px;
+        }
+
+        #selection::after {
+            bottom: -4px;
+            right: -4px;
+        }
+
+        #selection.complete::before,
+        #selection.complete::after {
+            opacity: 1;
+            background: var(--color-success, #10b981);
+        }
+
+        #selection.complete::before {
+            animation: cornerPopIn 0.3s ease-out;
+        }
+
+        #selection.complete::after {
+            animation: cornerPopIn 0.3s ease-out 0.1s backwards;
+        }
+
+        @keyframes cornerPopIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            70% {
+                transform: scale(1.3);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        #selection-info {
+            position: absolute;
+            background: var(--surface-overlay);
+            color: var(--text-primary);
+            padding: var(--spacing-xs) var(--spacing-md);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-family);
+            font-size: var(--font-size-sm);
+            white-space: nowrap;
+            pointer-events: none;
+            display: none;
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-subtle);
+            box-shadow: var(--shadow-md);
+            transition: transform 0.1s ease, opacity 0.15s ease;
+        }
+
+        #selection-info.show {
+            animation: infoFadeIn 0.15s ease-out;
+        }
+
+        @keyframes infoFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * INSTRUCTIONS
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        #instructions {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface-overlay);
+            color: var(--text-primary);
+            padding: var(--spacing-lg) var(--spacing-3xl);
+            border-radius: var(--radius-lg);
+            font-family: var(--font-family);
+            font-size: var(--font-size-base);
+            z-index: var(--z-modal);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xl);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(12px);
+            animation: instructionsSlideIn 0.3s ease-out;
+        }
+
+        @keyframes instructionsSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        #instructions.hide {
+            animation: instructionsFadeOut 0.2s ease-out forwards;
+        }
+
+        @keyframes instructionsFadeOut {
+            to {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-10px);
+            }
+        }
+
+        #instructions .icon {
+            width: 24px;
+            height: 24px;
+            background: var(--gradient-primary);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #instructions .icon svg {
+            width: 14px;
+            height: 14px;
+            color: var(--text-primary);
+        }
+
+        #instructions kbd {
+            background: var(--surface-secondary);
+            padding: 2px var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-family);
+            margin: 0 2px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * TOOLBAR - with animations
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        .toolbar {
+            position: absolute;
+            background: var(--surface-overlay);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-sm);
+            display: none;
+            gap: var(--spacing-sm);
+            box-shadow: var(--shadow-lg);
+            z-index: 1001;
+            backdrop-filter: blur(12px);
+            opacity: 0;
+            transform: translateY(10px) scale(0.95);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .toolbar.show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .toolbar button {
+            padding: var(--spacing-md) var(--spacing-xl);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: var(--font-weight-medium);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            transition: all 0.15s ease;
+            font-family: var(--font-family);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .toolbar button::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+            opacity: 0;
+            transform: scale(0);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .toolbar button:active::after {
+            opacity: 1;
+            transform: scale(2);
+            transition: opacity 0s, transform 0s;
+        }
+
+        .toolbar button svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.15s ease;
+        }
+
+        .toolbar .confirm-btn {
+            background: var(--gradient-cta);
+            color: var(--text-on-accent);
+        }
+
+        .toolbar .confirm-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(var(--color-primary-rgb, 99, 102, 241), 0.4);
+        }
+
+        .toolbar .confirm-btn:hover svg {
+            transform: scale(1.1);
+        }
+
+        .toolbar .confirm-btn:active {
+            transform: scale(0.98);
+        }
+
+        .toolbar .cancel-btn {
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+
+        .toolbar .cancel-btn:hover {
+            background: rgba(var(--color-error-rgb), 0.2);
+            border-color: rgba(var(--color-error-rgb), 0.4);
+            transform: scale(1.02);
+        }
+
+        .toolbar .cancel-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * CAPTURE FLASH EFFECT
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        #capture-flash {
+            position: fixed;
+            inset: 0;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        #capture-flash.flash {
+            animation: captureFlash 0.25s ease-out;
+        }
+
+        @keyframes captureFlash {
+            0% {
+                opacity: 0.6;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="screenshot-canvas"></canvas>
+    <div id="overlay"></div>
+    <div id="selection"></div>
+    <div id="selection-info"></div>
+    <div id="capture-flash"></div>
+
+    <div id="instructions">
+        <div class="icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+        </div>
+        <span>Klicka och dra för att välja ett område • Tryck <kbd>Esc</kbd> för att avbryta</span>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+        <button class="cancel-btn" id="cancel-btn">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Avbryt
+        </button>
+        <button class="confirm-btn" id="confirm-btn">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            Fånga
+        </button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('screenshot-canvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('overlay');
+        const selection = document.getElementById('selection');
+        const selectionInfo = document.getElementById('selection-info');
+        const instructions = document.getElementById('instructions');
+        const toolbar = document.getElementById('toolbar');
+        const confirmBtn = document.getElementById('confirm-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const captureFlash = document.getElementById('capture-flash');
+
+        let isSelecting = false;
+        let startX = 0;
+        let startY = 0;
+        let currentSelection = null;
+        let screenshotData = null;
+        let offset = { x: 0, y: 0 };
+        let scaleFactor = 1;
+
+        // Receive screenshot data from main process
+        window.snipAPI.onScreenshotData((data) => {
+            screenshotData = data;
+            offset = data.offset || { x: 0, y: 0 };
+
+            // Use the highest scale factor for better resolution
+            scaleFactor = Math.max(...data.displays.map(d => d.scaleFactor || 1), 1);
+
+            // Set canvas size with device pixel ratio for better resolution
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            ctx.scale(dpr, dpr);
+
+            // Load and draw each screenshot
+            const loadPromises = data.screenshots.map((screenshot, index) => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // Calculate position relative to the overlay window
+                        const display = data.displays[index] || data.displays[0];
+                        const x = display.bounds.x - offset.x;
+                        const y = display.bounds.y - offset.y;
+
+                        ctx.drawImage(img, x, y, display.bounds.width, display.bounds.height);
+                        resolve();
+                    };
+                    img.onerror = () => resolve();
+                    img.src = screenshot.thumbnail;
+                });
+            });
+
+            Promise.all(loadPromises).then(() => {
+                console.log('All screenshots loaded');
+            });
+        });
+
+        // Mouse events for selection
+        document.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.toolbar')) return;
+
+            isSelecting = true;
+            startX = e.clientX;
+            startY = e.clientY;
+
+            // Add visual feedback
+            overlay.classList.add('selecting');
+            selection.classList.remove('complete', 'active');
+            selection.classList.add('active');
+
+            selection.style.display = 'block';
+            selection.style.left = startX + 'px';
+            selection.style.top = startY + 'px';
+            selection.style.width = '0';
+            selection.style.height = '0';
+
+            selectionInfo.style.display = 'block';
+            selectionInfo.classList.add('show');
+            toolbar.style.display = 'none';
+            toolbar.classList.remove('show');
+
+            // Animate out instructions
+            instructions.classList.add('hide');
+            setTimeout(() => {
+                instructions.style.display = 'none';
+            }, 200);
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isSelecting) return;
+
+            const currentX = e.clientX;
+            const currentY = e.clientY;
+
+            const left = Math.min(startX, currentX);
+            const top = Math.min(startY, currentY);
+            const width = Math.abs(currentX - startX);
+            const height = Math.abs(currentY - startY);
+
+            selection.style.left = left + 'px';
+            selection.style.top = top + 'px';
+            selection.style.width = width + 'px';
+            selection.style.height = height + 'px';
+
+            // Update size info with scale factor for true resolution
+            const actualWidth = Math.round(width * scaleFactor);
+            const actualHeight = Math.round(height * scaleFactor);
+            selectionInfo.textContent = `${actualWidth} × ${actualHeight}`;
+
+            // Smart positioning for size info
+            let infoLeft = left + width + 10;
+            let infoTop = top + height + 10;
+
+            // Keep info on screen - check all edges
+            const infoWidth = 100; // approximate width
+            const infoHeight = 30;
+
+            if (infoLeft + infoWidth > window.innerWidth) {
+                infoLeft = left - infoWidth - 10;
+                if (infoLeft < 0) infoLeft = left + 5;
+            }
+            if (infoTop + infoHeight > window.innerHeight) {
+                infoTop = top - infoHeight - 10;
+                if (infoTop < 0) infoTop = top + 5;
+            }
+
+            selectionInfo.style.left = infoLeft + 'px';
+            selectionInfo.style.top = infoTop + 'px';
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (!isSelecting) return;
+            isSelecting = false;
+
+            // Remove selecting class
+            overlay.classList.remove('selecting');
+
+            const left = parseInt(selection.style.left);
+            const top = parseInt(selection.style.top);
+            const width = parseInt(selection.style.width);
+            const height = parseInt(selection.style.height);
+
+            if (width > 10 && height > 10) {
+                currentSelection = { left, top, width, height };
+
+                // Mark selection as complete with animation
+                selection.classList.remove('active');
+                selection.classList.add('complete');
+
+                // Show toolbar with animation
+                toolbar.style.display = 'flex';
+
+                // Calculate toolbar dimensions
+                const toolbarWidth = 180; // approximate width of toolbar
+                const toolbarHeight = 45; // approximate height of toolbar
+                const margin = 15; // margin from selection and screen edges
+
+                // Try positions in order of preference:
+                // 1. Below selection, centered
+                // 2. Above selection, centered
+                // 3. Right of selection, top-aligned
+                // 4. Left of selection, top-aligned
+                // 5. Inside selection at bottom-right
+
+                let toolbarLeft, toolbarTop;
+                let positioned = false;
+
+                // Position 1: Below selection
+                toolbarLeft = left + (width / 2) - (toolbarWidth / 2);
+                toolbarTop = top + height + margin;
+
+                if (toolbarTop + toolbarHeight <= window.innerHeight - margin) {
+                    // Adjust horizontal if needed
+                    if (toolbarLeft < margin) toolbarLeft = margin;
+                    if (toolbarLeft + toolbarWidth > window.innerWidth - margin) {
+                        toolbarLeft = window.innerWidth - toolbarWidth - margin;
+                    }
+                    positioned = true;
+                }
+
+                // Position 2: Above selection
+                if (!positioned) {
+                    toolbarTop = top - toolbarHeight - margin;
+                    if (toolbarTop >= margin) {
+                        if (toolbarLeft < margin) toolbarLeft = margin;
+                        if (toolbarLeft + toolbarWidth > window.innerWidth - margin) {
+                            toolbarLeft = window.innerWidth - toolbarWidth - margin;
+                        }
+                        positioned = true;
+                    }
+                }
+
+                // Position 3: Right of selection
+                if (!positioned) {
+                    toolbarLeft = left + width + margin;
+                    toolbarTop = top;
+                    if (toolbarLeft + toolbarWidth <= window.innerWidth - margin) {
+                        if (toolbarTop + toolbarHeight > window.innerHeight - margin) {
+                            toolbarTop = window.innerHeight - toolbarHeight - margin;
+                        }
+                        positioned = true;
+                    }
+                }
+
+                // Position 4: Left of selection
+                if (!positioned) {
+                    toolbarLeft = left - toolbarWidth - margin;
+                    if (toolbarLeft >= margin) {
+                        if (toolbarTop + toolbarHeight > window.innerHeight - margin) {
+                            toolbarTop = window.innerHeight - toolbarHeight - margin;
+                        }
+                        positioned = true;
+                    }
+                }
+
+                // Position 5: Inside selection at bottom-right (fallback)
+                if (!positioned) {
+                    toolbarLeft = left + width - toolbarWidth - 10;
+                    toolbarTop = top + height - toolbarHeight - 10;
+
+                    // Ensure minimum bounds
+                    if (toolbarLeft < margin) toolbarLeft = margin;
+                    if (toolbarTop < margin) toolbarTop = margin;
+                }
+
+                toolbar.style.left = toolbarLeft + 'px';
+                toolbar.style.top = toolbarTop + 'px';
+
+                // Trigger animation
+                requestAnimationFrame(() => {
+                    toolbar.classList.add('show');
+                });
+            } else {
+                // Selection too small, reset
+                selection.style.display = 'none';
+                selection.classList.remove('active', 'complete');
+                selectionInfo.style.display = 'none';
+                instructions.classList.remove('hide');
+                instructions.style.display = 'flex';
+            }
+        });
+
+        // Confirm capture
+        confirmBtn.addEventListener('click', async () => {
+            if (!currentSelection) return;
+
+            const { left, top, width, height } = currentSelection;
+
+            // Trigger flash effect for satisfying feedback
+            captureFlash.classList.add('flash');
+            setTimeout(() => captureFlash.classList.remove('flash'), 300);
+
+            // Create a temporary canvas for the selected region with higher resolution
+            const dpr = window.devicePixelRatio || 1;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width * dpr;
+            tempCanvas.height = height * dpr;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Copy the selected region from the main canvas at full resolution
+            tempCtx.drawImage(
+                canvas,
+                left * dpr, top * dpr, width * dpr, height * dpr,
+                0, 0, width * dpr, height * dpr
+            );
+
+            // Get base64 image data with high quality
+            const imageData = tempCanvas.toDataURL('image/png', 1.0);
+
+            // Small delay for flash effect to be visible
+            await new Promise(resolve => setTimeout(resolve, 150));
+
+            // Send to main process
+            await window.snipAPI.complete({
+                imageData,
+                region: {
+                    x: left + offset.x,
+                    y: top + offset.y,
+                    width: width * dpr,
+                    height: height * dpr
+                }
+            });
+        });
+
+        // Cancel
+        cancelBtn.addEventListener('click', async () => {
+            await window.snipAPI.cancel();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', async (e) => {
+            if (e.key === 'Escape') {
+                await window.snipAPI.cancel();
+            } else if (e.key === 'Enter' && currentSelection) {
+                confirmBtn.click();
+            }
+        });
+
+        // Prevent context menu
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+    </script>
+</body>
+
+</html>

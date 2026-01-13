@@ -1,0 +1,100 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Auth API - exposed to renderer for authentication
+contextBridge.exposeInMainWorld('authAPI', {
+  signup: (email, password) => ipcRenderer.invoke('auth:signup', { email, password }),
+  login: (email, password) => ipcRenderer.invoke('auth:login', { email, password }),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  getUser: () => ipcRenderer.invoke('auth:getUser'),
+  resetPassword: (email) => ipcRenderer.invoke('auth:resetPassword', { email }),
+  complete: () => ipcRenderer.invoke('auth:complete'),
+  logoutAndShowAuth: () => ipcRenderer.invoke('auth:logoutAndShowAuth'),
+  googleLogin: () => ipcRenderer.invoke('auth:googleLogin'),
+  onStatusChanged: (callback) => {
+    ipcRenderer.on('auth:status-changed', (event, data) => callback(data));
+  },
+  removeStatusListener: () => {
+    ipcRenderer.removeAllListeners('auth:status-changed');
+  }
+});
+
+// Supabase Data API - exposed to renderer for data operations
+contextBridge.exposeInMainWorld('supabaseAPI', {
+  fetchData: (tableName) => ipcRenderer.invoke('supabase-query', tableName)
+});
+
+// LLM API - exposed to renderer for AI chat
+// Note: Model is controlled server-side via Supabase app_settings
+contextBridge.exposeInMainWorld('llmAPI', {
+  chat: (messages) => ipcRenderer.invoke('llm:chat', { messages }),
+  onToolProgress: (callback) => {
+    ipcRenderer.on('llm:toolProgress', (event, data) => callback(data));
+  },
+  removeToolProgressListener: () => {
+    ipcRenderer.removeAllListeners('llm:toolProgress');
+  }
+});
+
+// Token API - exposed to renderer for token management
+contextBridge.exposeInMainWorld('tokenAPI', {
+  getBalance: () => ipcRenderer.invoke('tokens:getBalance'),
+  getHistory: (options = {}) => ipcRenderer.invoke('tokens:getHistory', options),
+  onUpdated: (callback) => {
+    ipcRenderer.on('tokens:updated', (event, data) => callback(data));
+  },
+  removeUpdateListener: () => {
+    ipcRenderer.removeAllListeners('tokens:updated');
+  }
+});
+
+// System API - exposed to renderer for system information
+contextBridge.exposeInMainWorld('systemAPI', {
+  getInfo: () => ipcRenderer.invoke('system:getInfo'),
+  refreshProcesses: () => ipcRenderer.invoke('system:refreshProcesses')
+});
+
+// Snipping Tool API - exposed to renderer for screen capture
+contextBridge.exposeInMainWorld('snipAPI', {
+  openOverlay: () => ipcRenderer.invoke('snip:openOverlay'),
+  cancel: () => ipcRenderer.invoke('snip:cancel'),
+  complete: (data) => ipcRenderer.invoke('snip:complete', data),
+  onScreenshotData: (callback) => {
+    ipcRenderer.on('snip:screenshotData', (event, data) => callback(data));
+  },
+  onCaptured: (callback) => {
+    ipcRenderer.on('snip:captured', (event, data) => callback(data));
+  },
+  removeListeners: () => {
+    ipcRenderer.removeAllListeners('snip:screenshotData');
+    ipcRenderer.removeAllListeners('snip:captured');
+  }
+});
+
+// App Control API - exposed to renderer for app settings and controls
+contextBridge.exposeInMainWorld('appAPI', {
+  // Auto-launch controls
+  getAutoLaunchStatus: () => ipcRenderer.invoke('autoLaunch:getStatus'),
+  enableAutoLaunch: () => ipcRenderer.invoke('autoLaunch:enable'),
+  disableAutoLaunch: () => ipcRenderer.invoke('autoLaunch:disable'),
+  // Minimize to tray
+  minimizeToTray: () => ipcRenderer.invoke('app:minimizeToTray')
+});
+
+// Window Control API - exposed to renderer for frameless window controls
+contextBridge.exposeInMainWorld('windowAPI', {
+  close: () => ipcRenderer.invoke('window:close'),
+  minimize: () => ipcRenderer.invoke('window:minimize'),
+  toggleAlwaysOnTop: () => ipcRenderer.invoke('window:toggleAlwaysOnTop'),
+  getAlwaysOnTop: () => ipcRenderer.invoke('window:getAlwaysOnTop')
+});
+
+// Settings API - exposed to renderer for app settings from Supabase
+contextBridge.exposeInMainWorld('settingsAPI', {
+  getSystemPrompt: () => ipcRenderer.invoke('settings:getSystemPrompt')
+});
+
+// Tools API - exposed to renderer for tool information
+contextBridge.exposeInMainWorld('toolsAPI', {
+  getAvailable: () => ipcRenderer.invoke('tools:getAvailable'),
+  getHistory: (options = {}) => ipcRenderer.invoke('tools:getHistory', options)
+});

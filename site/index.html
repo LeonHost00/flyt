@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flyt - Din AI-assistent för ett sömlöst arbetsflöde</title>
+    <meta name="description" content="Flyt är din AI-drivna assistent som bor på ditt skrivbord. Byggd för att minimera friktion och maximera ditt fokus.">
+    <meta name="keywords" content="Flyt, Flow, AI-assistent, Produktivitet, Fokus, Automatisering">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Flyt - Hitta ditt flyt">
+    <meta property="og:description" content="Din AI-drivna assistent som hjälper dig att nå flow-tillstånd direkt på skrivbordet.">
+    <meta property="og:image" content="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg">
+    <meta property="og:type" content="website">
+    
+    <link rel="icon" type="image/svg+xml" href="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * FLYT LANDING PAGE - Nordic Night Sky Theme (v2.0)
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        :root {
+            /* Core Palette - Nordic Night */
+            --bg-deep: #050a14;
+            --bg-primary: #0d1b2a;
+            --bg-secondary: #1b263b;
+            --bg-glass: rgba(27, 38, 59, 0.7);
+            
+            /* Accents */
+            --color-forest: #3A7A68;
+            --color-forest-light: #4CAF76;
+            --color-nordic-blue: #4e89ae;
+            
+            /* CTA: Cloudberry Orange */
+            --color-accent: #FF8C42;
+            --color-accent-light: #FFA366;
+            --color-accent-dark: #E67A30;
+            --color-accent-glow: rgba(255, 140, 66, 0.3);
+            
+            /* Text */
+            --text-primary: #f0f4f8;
+            --text-secondary: #b0c4de;
+            --text-muted: rgba(176, 196, 222, 0.5);
+            
+            /* Borders & Shadows */
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --border-accent: rgba(58, 122, 104, 0.3);
+            --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --shadow-accent: 0 0 20px var(--color-accent-glow);
+            
+            /* Typography */
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-deep);
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(58, 122, 104, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(78, 137, 174, 0.1) 0%, transparent 40%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: var(--font-main);
+            font-weight: 700;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * NAVIGATION
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-glass);
+        }
+        
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+        
+        .nav-logo img {
+            height: 32px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-link:hover {
+            color: var(--text-primary);
+        }
+        
+        .nav-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            background: var(--color-accent);
+            color: var(--bg-primary);
+            text-decoration: none;
+            border-radius: 100px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .nav-cta:hover {
+            background: var(--color-accent-light);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 20px var(--color-accent-glow);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * HERO SECTION
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 120px 20px;
+            position: relative;
+        }
+
+        .hero-glow {
+            position: absolute;
+            width: 60vw;
+            height: 60vw;
+            background: radial-gradient(circle, rgba(255, 140, 66, 0.08) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 0;
+            animation: pulse-slow 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+        }
+        
+        .hero-logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 0 20px var(--color-accent-glow));
+        }
+        
+        .hero-tagline {
+            font-size: clamp(2.5rem, 8vw, 4.5rem);
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 30%, var(--color-accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .hero-description {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 650px;
+            margin: 0 auto 48px;
+            line-height: 1.6;
+        }
+        
+        .hero-cta-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .hero-cta {
+            padding: 20px 48px;
+            background: var(--color-accent);
+            color: var(--bg-primary);
+            text-decoration: none;
+            border-radius: 16px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px var(--color-accent-glow);
+        }
+        
+        .hero-cta:hover {
+            transform: translateY(-4px);
+            background: var(--color-accent-light);
+            box-shadow: 0 15px 40px var(--color-accent-glow);
+        }
+        
+        .hero-platform {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hero-platform span {
+            width: 6px;
+            height: 6px;
+            background: var(--color-forest-light);
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * FEATURES GRID
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .section {
+            padding: 120px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 80px;
+        }
+        
+        .section-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(58, 122, 104, 0.15);
+            color: var(--color-forest-light);
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-accent);
+        }
+
+        .section-title {
+            font-size: clamp(2rem, 5vw, 3rem);
+            margin-bottom: 20px;
+            letter-spacing: -0.02em;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 32px;
+        }
+        
+        .feature-card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 48px;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.03) 100%);
+            pointer-events: none;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--color-forest);
+            background: rgba(27, 38, 59, 0.9);
+            box-shadow: var(--shadow-soft);
+        }
+        
+        .feature-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border: 1px solid var(--border-glass);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 28px;
+            color: var(--color-accent);
+        }
+        
+        .feature-title {
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+        
+        .feature-description {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            line-height: 1.7;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * CAPABILITIES (TOOLS)
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        .capabilities {
+            background: rgba(13, 27, 42, 0.4);
+        }
+
+        .caps-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 40px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cap-tag {
+            padding: 8px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: 100px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .cap-tag:hover {
+            border-color: var(--color-accent);
+            color: var(--text-primary);
+            transform: scale(1.05);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * SNIPPING SECTION
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        .split-section {
+            display: flex;
+            align-items: center;
+            gap: 80px;
+            padding: 100px 0;
+        }
+
+        .split-content {
+            flex: 1;
+        }
+
+        .split-image {
+            flex: 1.2;
+            position: relative;
+        }
+
+        .image-mockup {
+            width: 100%;
+            border-radius: 20px;
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--shadow-soft);
+            background: var(--bg-secondary);
+            aspect-ratio: 16/10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .image-mockup img {
+            width: 90%;
+            opacity: 0.8;
+        }
+
+        .glow-dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--color-accent);
+            border-radius: 50%;
+            box-shadow: 0 0 15px var(--color-accent);
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes ping {
+            75%, 100% { transform: scale(2.5); opacity: 0; }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * CTA SECTION
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .cta-section {
+            padding-bottom: 120px;
+        }
+        
+        .cta-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border: 1px solid var(--border-accent);
+            border-radius: 40px;
+            padding: 80px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-card::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 140, 66, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        
+        .cta-title {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            margin-bottom: 24px;
+        }
+        
+        .cta-description {
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            max-width: 600px;
+            margin: 0 auto 48px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * FOOTER
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        .footer {
+            padding: 60px 20px;
+            border-top: 1px solid var(--border-glass);
+            background: var(--bg-deep);
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .footer-brand {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .footer-logo {
+            height: 32px;
+            opacity: 0.8;
+        }
+        
+        .footer-text {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 40px;
+        }
+
+        .footer-column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .footer-column h4 {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .footer-link:hover {
+            color: var(--color-accent);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * RESPONSIVE
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        
+        @media (max-width: 1024px) {
+            .split-section {
+                flex-direction: column;
+                text-align: center;
+                gap: 40px;
+            }
+            .nav {
+                padding: 20px 30px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            .hero-tagline {
+                font-size: 3rem;
+            }
+            .section {
+                padding: 80px 20px;
+            }
+            .cta-card {
+                padding: 60px 20px;
+            }
+            .footer-content {
+                flex-direction: column;
+                gap: 40px;
+                text-align: center;
+                align-items: center;
+            }
+            .footer-brand {
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <a href="#" class="nav-logo">
+            <img src="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg" alt="Flyt Logo">
+            <img src="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/name.svg" alt="Flyt" height="20">
+        </a>
+        <div class="nav-links">
+            <a href="#features" class="nav-link">Funktioner</a>
+            <a href="#tools" class="nav-link">Verktyg</a>
+            <a href="https://flytapp.se/download/windows/Flyt%20Setup%201.0.0.exe" class="nav-cta">
+                Ladda ner
+            </a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="hero-glow"></div>
+        <div class="hero-content">
+            <img src="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg" alt="Flyt Logo" class="hero-logo">
+            <h1 class="hero-tagline">Hitta ditt flyt</h1>
+            <p class="hero-description">
+                Flyt är din AI-assistent som bor direkt på ditt skrivbord. Den har tillgång till ditt system, dina filer och dina kommandon — så att du kan sluta växla mellan flikar och börja få saker gjorda.
+            </p>
+            <div class="hero-cta-group">
+                <a href="https://flytapp.se/download/windows/Flyt%20Setup%201.0.0.exe" class="hero-cta">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" width="24" height="24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    Hämta för Windows
+                </a>
+                <div class="hero-platform">
+                    <span></span> Tillgänglig nu för Windows • macOS kommer snart
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Features -->
+    <section id="features" class="section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Fokus först</span>
+                <h2 class="section-title">Designad för flow</h2>
+                <p class="section-subtitle">Vi har skalat bort allt brus för att ge dig den mest sömlösa AI-upplevelsen någonsin.</p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Direkt tillgång</h3>
+                    <p class="feature-description">Aktivera Flyt med ett snabbt kommando (Ctrl+Shift+C). Den finns alltid där när du behöver den, och försvinner när du är klar.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 1.035-.84 1.875-1.875 1.875S16.5 7.41 16.5 6.375 17.34 4.5 18.375 4.5s1.875.84 1.875 1.875zM6.75 12c0 1.035-.84 1.875-1.875 1.875S3 13.035 3 12s.84-1.875 1.875-1.875S6.75 10.965 6.75 12zm12.75 5.625c0 1.035-.84 1.875-1.875 1.875s-1.875-.84-1.875-1.875.84-1.875 1.875-1.875 1.875.84 1.875 1.875zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM4.875 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM4.875 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Systemintegration</h3>
+                    <p class="feature-description">Flyt kan läsa och skriva filer, köra terminalkommandon och hämta systeminfo. Det är som att ha en senior utvecklare som bor i din dator.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Snipping Section -->
+    <section class="section capabilities">
+        <div class="container">
+            <div class="split-section">
+                <div class="split-image">
+                    <div class="image-mockup">
+                        <div class="glow-dot" style="top: 30%; left: 40%;"></div>
+                        <img src="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg" alt="Flyt Tool" style="width: 60px; height: 60px; margin-bottom: 20px;">
+                        <div style="text-align: left; width: 70%; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid var(--border-glass);">
+                            <div style="height: 10px; width: 60%; background: var(--text-muted); border-radius: 4px; margin-bottom: 8px;"></div>
+                            <div style="height: 10px; width: 90%; background: var(--text-muted); border-radius: 4px; margin-bottom: 8px;"></div>
+                            <div style="height: 10px; width: 40%; background: var(--text-muted); border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="split-content">
+                    <span class="section-badge">Vision</span>
+                    <h2 class="section-title">Klippverktyget som förstår</h2>
+                    <p class="feature-description" style="font-size: 1.2rem; margin-bottom: 30px;">
+                        Ta en skärmbild av vad som helst på din skärm och låt Flyt analysera det. Från att förklara komplex kod till att extrahera text från bilder — Flyt ser vad du ser.
+                    </p>
+                    <ul style="list-style: none; display: flex; flex-direction: column; gap: 16px;">
+                        <li style="display: flex; align-items: center; gap: 12px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="var(--color-forest-light)" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                            Analysera UI och design direkt
+                        </li>
+                        <li style="display: flex; align-items: center; gap: 12px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="var(--color-forest-light)" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                            Felsök felmeddelanden från bilder
+                        </li>
+                        <li style="display: flex; align-items: center; gap: 12px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="var(--color-forest-light)" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                            Konvertera skisser till kod
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tools Section -->
+    <section id="tools" class="section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Kraftfulla verktyg</span>
+                <h2 class="section-title">En förlängning av din dator</h2>
+                <p class="section-subtitle">Flyt kommer laddad med verktyg som låter AI:n interagera med din miljö på riktigt.</p>
+            </div>
+            
+            <div class="caps-list">
+                <span class="cap-tag">Filhantering</span>
+                <span class="cap-tag">Terminal (PowerShell)</span>
+                <span class="cap-tag">Bildkonvertering</span>
+                <span class="cap-tag">Urklippshantering</span>
+                <span class="cap-tag">Systeminformation</span>
+                <span class="cap-tag">URL-öppnare</span>
+                <span class="cap-tag">Processhantering</span>
+                <span class="cap-tag">Miljövariabler</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section cta-section">
+        <div class="container">
+            <div class="cta-card">
+                <h2 class="cta-title">Redo att få Flyt?</h2>
+                <p class="cta-description">Gör som hundratals andra användare och förvandla hur du interagerar med din dator.</p>
+                <a href="https://flytapp.se/download/windows/Flyt%20Setup%201.0.0.exe" class="hero-cta">
+                    Ladda ner för Windows
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <img src="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg" alt="Flyt" class="footer-logo">
+                <p class="footer-text">© 2026 Flyt. Alla rättigheter förbehållna.</p>
+                <p class="footer-text" style="font-style: italic;">Byggd för fokus. Skapad i Norden.</p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Appen</h4>
+                    <a href="https://flytapp.se/download/windows/Flyt%20Setup%201.0.0.exe" class="footer-link">Ladda ner</a>
+                    <a href="#" class="footer-link">Changelog</a>
+                </div>
+                <div class="footer-column">
+                    <h4>Support</h4>
+                    <a href="mailto:flyt@flytapp.se" class="footer-link">Kontakt</a>
+                    <a href="#" class="footer-link">Integritet</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

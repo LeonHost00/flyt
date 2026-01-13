@@ -1,0 +1,51 @@
+{
+  "name": "flyt",
+  "version": "1.0.1",
+  "author": "Leon <flyt@flytapp.se>",
+  "description": "Flyt - Your AI-powered desktop assistant",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "deploy": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "@imagemagick/magick-wasm": "^0.0.37",
+    "@supabase/supabase-js": "^2.39.0",
+    "auto-launch": "^5.0.6",
+    "dotenv": "^17.2.3",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.7.3"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^26.4.0",
+    "supabase": "^2.72.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/klirrnu/flyt.git"
+  },
+  "build": {
+    "appId": "com.flyt.app",
+    "productName": "Flyt",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://flytapp.se/download/windows/"
+      }
+    ]
+  }
+}
