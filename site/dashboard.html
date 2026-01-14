@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="sv">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://*.supabase.co https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co https://*.stripe.com; connect-src 'self' https://*.supabase.co https://flytapp.se https://api.stripe.com https://cdn.jsdelivr.net; frame-src https://js.stripe.com https://*.stripe.com;">
+    <title>Kontrollpanel - Flyt</title>
+    <link rel="icon" type="image/svg+xml"
+        href="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+
+    <!-- Stripe.js for Embedded Checkout -->
+    <script src="https://js.stripe.com/v3/"></script>
+
+    <!-- Shared Theme & Header Styles -->
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="header.css">
+
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * DASHBOARD PAGE - Page-Specific Styles
+         * Base theme variables and styles are in theme.css
+         * ═══════════════════════════════════════════════════════════════════════════ */
+        :root {
+            /* Core Palette - Nordic Night */
+            --bg-deep: #050a14;
+            --bg-primary: #0d1b2a;
+            --bg-secondary: #1b263b;
+            --bg-glass: rgba(27, 38, 59, 0.7);
+
+            /* Accents */
+            --color-forest: #3A7A68;
+            --color-forest-light: #4CAF76;
+            --color-nordic-blue: #4e89ae;
+
+            /* CTA: Cloudberry Orange */
+            --color-accent: #FF8C42;
+            --color-accent-light: #FFA366;
+            --color-accent-dark: #E67A30;
+            --color-accent-glow: rgba(255, 140, 66, 0.3);
+
+            /* Danger */
+            --color-danger: #e63232;
+            --color-danger-light: #ff5555;
+            --color-danger-glow: rgba(230, 50, 50, 0.3);
+
+            /* Text */
+            --text-primary: #f0f4f8;
+            --text-secondary: #b0c4de;
+            --text-muted: rgba(176, 196, 222, 0.5);
+
+            /* Borders & Shadows */
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --border-accent: rgba(58, 122, 104, 0.3);
+            --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+            /* Typography */
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-deep);
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(58, 122, 104, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(78, 137, 174, 0.1) 0%, transparent 40%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Main Content */
+        .dashboard-main {
+            flex: 1;
+            padding: 40px 20px 80px;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .welcome-header {
+            margin-bottom: 48px;
+        }
+
+        .welcome-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+            font-family: var(--font-main);
+            background: linear-gradient(135deg, #fff 30%, var(--color-accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .welcome-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        /* Grid Layout */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: var(--shadow-soft);
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-accent);
+        }
+
+        .card-title {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.6;
+        }
+
+        .card-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-family: var(--font-main);
+        }
+
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Section Headers */
+        .section-header {
+            margin-bottom: 24px;
+        }
+
+        .section-header h2 {
+            font-size: 1.4rem;
+            font-family: var(--font-main);
+            font-weight: 700;
+        }
+
+        /* Quick Actions */
+        .actions-section {
+            margin-top: 48px;
+        }
+
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 28px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-primary);
+            border-color: var(--color-accent);
+            transform: scale(1.02);
+        }
+
+        .action-btn svg {
+            width: 28px;
+            height: 28px;
+            color: var(--color-accent);
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, var(--color-accent-dark), var(--color-accent));
+            color: var(--bg-primary);
+            border-color: transparent;
+        }
+
+        .action-btn.primary svg {
+            color: var(--bg-primary);
+        }
+
+        .action-btn.primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 24px var(--color-accent-glow);
+        }
+
+        /* Account Section */
+        .account-section {
+            margin-top: 48px;
+        }
+
+        .account-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .account-card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 24px;
+        }
+
+        .account-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .account-card-header svg {
+            width: 20px;
+            height: 20px;
+            color: var(--color-accent);
+        }
+
+        .account-card-header h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: var(--font-main);
+        }
+
+        .account-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .account-item:last-child {
+            border-bottom: none;
+        }
+
+        .account-item-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .account-item-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 100px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-badge.verified {
+            background: rgba(76, 175, 118, 0.15);
+            color: var(--color-forest-light);
+            border: 1px solid rgba(76, 175, 118, 0.3);
+        }
+
+        .status-badge.free {
+            background: rgba(78, 137, 174, 0.15);
+            color: var(--color-nordic-blue);
+            border: 1px solid rgba(78, 137, 174, 0.3);
+        }
+
+        .status-badge.pro {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 140, 66, 0.2));
+            color: #ffd700;
+            border: 1px solid rgba(255, 215, 0, 0.4);
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+        }
+
+        .account-btn {
+            padding: 10px 18px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-glass);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .account-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--color-accent);
+        }
+
+        .account-btn.danger {
+            color: #ff8080;
+            border-color: rgba(230, 50, 50, 0.3);
+        }
+
+        .account-btn.danger:hover {
+            background: rgba(230, 50, 50, 0.15);
+            border-color: rgba(230, 50, 50, 0.5);
+        }
+
+        /* Loading Skeleton */
+        .skeleton {
+            background: linear-gradient(90deg,
+                    rgba(255, 255, 255, 0.05) 25%,
+                    rgba(255, 255, 255, 0.1) 50%,
+                    rgba(255, 255, 255, 0.05) 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 8px;
+        }
+
+        @keyframes loading {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        .skeleton-text {
+            height: 1.2rem;
+            width: 60%;
+        }
+
+        .skeleton-title {
+            height: 2rem;
+            width: 40%;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(5, 10, 20, 0.85);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal h3 {
+            font-size: 1.3rem;
+            margin-bottom: 12px;
+            font-family: var(--font-main);
+        }
+
+        .modal p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 24px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-bottom: 16px;
+            font-family: inherit;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 3px var(--color-accent-glow);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-family: inherit;
+        }
+
+        .modal-btn.secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-glass);
+        }
+
+        .modal-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .modal-btn.primary {
+            background: var(--color-accent);
+            color: var(--bg-primary);
+        }
+
+        .modal-btn.primary:hover {
+            background: var(--color-accent-light);
+        }
+
+        .modal-btn.danger {
+            background: var(--color-danger);
+            color: white;
+        }
+
+        .modal-btn.danger:hover {
+            background: var(--color-danger-light);
+        }
+
+        /* Tier Modal with Embedded Checkout */
+        .tier-modal-checkout {
+            max-width: 600px;
+            width: 95vw;
+        }
+
+        #tier-modal .modal {
+            max-width: 420px;
+            transition: max-width 0.3s ease;
+        }
+
+        #tier-modal.expanded .modal {
+            max-width: 600px;
+        }
+
+        /* Full Screen Payment Overlay */
+        .payment-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-deep);
+            z-index: 2100;
+            display: none;
+            overflow-y: auto;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .payment-overlay.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .payment-header {
+            max-width: 680px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 40px 20px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .payment-header h2 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #fff 30%, var(--color-accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .payment-close {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            color: var(--text-secondary);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .payment-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            border-color: var(--text-primary);
+        }
+
+        .payment-content {
+            flex: 1;
+            max-width: 680px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .payment-summary {
+            margin-bottom: 40px;
+            padding: 24px;
+            background: linear-gradient(180deg, rgba(255, 140, 66, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 140, 66, 0.1);
+        }
+
+        .payment-summary-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-accent);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .payment-summary-price {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .payment-summary-period {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .payment-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .payment-feature-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .payment-feature-item svg {
+            color: var(--color-forest-light);
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Clean Checkout Container */
+        .checkout-container {
+            display: none;
+            margin-bottom: 40px;
+            /* Border removed */
+            background: transparent;
+        }
+
+        .checkout-container.active {
+            display: block;
+        }
+
+        .checkout-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 80px 0;
+            color: var(--text-secondary);
+        }
+
+        .checkout-loading.hidden {
+            display: none;
+        }
+
+        .checkout-spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(255, 140, 66, 0.1);
+            border-top-color: var(--color-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        #checkout-element {
+            min-height: 300px;
+        }
+
+        #checkout-submit {
+            width: 100%;
+            padding: 20px;
+            background: var(--color-accent);
+            color: var(--bg-primary);
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-radius: 16px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: none;
+            /* Hidden by default until ready */
+            margin-top: 24px;
+            box-shadow: 0 10px 30px rgba(255, 140, 66, 0.2);
+        }
+
+        #checkout-submit:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: var(--color-accent-light);
+            box-shadow: 0 15px 40px rgba(255, 140, 66, 0.3);
+        }
+
+        #checkout-submit:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #checkout-error {
+            color: var(--color-danger-light);
+            background: rgba(230, 50, 50, 0.1);
+            padding: 16px;
+            border-radius: 12px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            display: none;
+            text-align: center;
+        }
+
+        .secure-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 32px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .secure-badge svg {
+            width: 14px;
+            height: 14px;
+            opacity: 0.7;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-main {
+                padding: 24px 16px 60px;
+            }
+
+            .welcome-header h1 {
+                font-size: 1.8rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actions-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .account-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .payment-header {
+                padding-top: 20px;
+            }
+
+            .payment-summary-price {
+                font-size: 2rem;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+         * FILE STORAGE SECTION
+         * ═══════════════════════════════════════════════════════════════════════════ */
+
+        .storage-section {
+            margin-top: 48px;
+        }
+
+        .storage-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .storage-card {
+            min-height: 160px;
+        }
+
+        .storage-progress {
+            margin: 16px 0;
+        }
+
+        .storage-bar {
+            height: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .storage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--color-forest), var(--color-forest-light));
+            border-radius: 6px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .storage-fill.warning {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+        }
+
+        .storage-fill.critical {
+            background: linear-gradient(90deg, var(--color-danger), var(--color-danger-light));
+        }
+
+        .storage-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .upload-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 160px;
+            padding: 0;
+        }
+
+        .upload-zone {
+            width: 100%;
+            height: 100%;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 24px;
+            border: 2px dashed var(--border-glass);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--color-accent);
+            background: rgba(255, 140, 66, 0.05);
+        }
+
+        .upload-zone svg {
+            width: 40px;
+            height: 40px;
+            color: var(--color-accent);
+            opacity: 0.8;
+        }
+
+        .upload-zone p {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .upload-zone span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .file-list-container {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .file-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .file-list-header h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: var(--font-main);
+            margin: 0;
+        }
+
+        .file-list-header span {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .file-list {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .file-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .file-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .file-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            transition: background 0.2s;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .file-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 140, 66, 0.1);
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        .file-icon svg {
+            width: 18px;
+            height: 18px;
+            color: var(--color-accent);
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 12px;
+        }
+
+        .file-delete-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-muted);
+        }
+
+        .file-delete-btn:hover {
+            background: rgba(230, 50, 50, 0.1);
+            border-color: rgba(230, 50, 50, 0.3);
+            color: var(--color-danger-light);
+        }
+
+        .file-delete-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .file-empty {
+            padding: 40px 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .file-empty svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        .upload-progress {
+            width: 100%;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-glass);
+            display: none;
+        }
+
+        .upload-progress.active {
+            display: block;
+        }
+
+        .upload-progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .upload-progress-fill {
+            height: 100%;
+            background: var(--color-accent);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .upload-progress-text {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        /* Success Overlay */
+        .success-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(5, 10, 20, 0.9);
+            backdrop-filter: blur(12px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 4000;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .success-overlay.active {
+            display: flex;
+        }
+
+        .success-anim-container {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            margin-bottom: 32px;
+        }
+
+        .success-circle {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(255, 140, 66, 0.1);
+            border: 2px solid var(--color-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse-glow 2s infinite;
+        }
+
+        .success-check {
+            width: 50px;
+            height: 50px;
+            color: var(--color-accent);
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .success-overlay.processing .success-check {
+            display: none;
+        }
+
+        .success-overlay.complete .success-check {
+            display: block;
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .success-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(255, 140, 66, 0.2);
+            border-top-color: var(--color-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .success-overlay.complete .success-spinner {
+            display: none;
+        }
+
+        @keyframes pulse-glow {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 140, 66, 0.4);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 30px rgba(255, 140, 66, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 140, 66, 0);
+            }
+        }
+
+        .success-overlay h2 {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+            font-family: var(--font-main);
+            color: white;
+        }
+
+        .success-overlay p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 400px;
+        }
+
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+
+            0%,
+            20% {
+                content: '.';
+            }
+
+            40% {
+                content: '..';
+            }
+
+            60% {
+                content: '...';
+            }
+
+            80%,
+            100% {
+                content: '';
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Shared Header will be injected here -->
+    <div id="flyt-header"></div>
+
+    <main class="dashboard-main">
+        <header class="welcome-header">
+            <h1 id="welcome-msg">Välkommen tillbaka</h1>
+            <p>Ditt konto och dina inställningar för Flyt.</p>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="card">
+                <div class="card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Token Saldo
+                </div>
+                <div class="card-value" id="token-balance">
+                    <div class="skeleton skeleton-title"></div>
+                </div>
+                <div class="card-subtitle" id="token-subtitle">Laddar ditt saldo...</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                    Plan
+                </div>
+                <div class="card-value" id="user-tier">
+                    <div class="skeleton skeleton-title"></div>
+                </div>
+                <div class="card-subtitle">Aktuell prenumeration</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Kontostatus
+                </div>
+                <div class="card-value" id="account-status">Aktiv</div>
+                <div class="card-subtitle" id="member-since">Laddar...</div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <section class="actions-section">
+            <div class="section-header">
+                <h2>Snabbåtgärder</h2>
+            </div>
+            <div class="actions-grid">
+                <a href="#" class="action-btn primary download-link-windows" id="download-app-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Hämta appen
+                </a>
+                <button class="action-btn" id="change-password-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    Byt lösenord
+                </button>
+                <button class="action-btn" id="add-tokens-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Fyll på tokens
+                </button>
+                <a href="mailto:flyt@flytapp.se" class="action-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    Support
+                </a>
+            </div>
+        </section>
+
+        <!-- File Storage Section -->
+        <section class="storage-section">
+            <div class="section-header">
+                <h2>Fillagring</h2>
+            </div>
+            <div class="storage-grid">
+                <!-- Storage Usage Card -->
+                <div class="card storage-card">
+                    <div class="card-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                        </svg>
+                        Lagringsutrymme
+                    </div>
+                    <div class="storage-progress">
+                        <div class="storage-bar">
+                            <div class="storage-fill" id="storage-fill"></div>
+                        </div>
+                        <div class="storage-text">
+                            <span id="storage-used">0 KB</span>
+                            <span id="storage-limit">1 MB</span>
+                        </div>
+                    </div>
+                    <div class="card-subtitle" id="storage-subtitle">Laddar lagringsinformation...</div>
+                </div>
+
+                <!-- File Upload Card -->
+                <div class="card upload-card">
+                    <div class="upload-zone" id="upload-zone">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p>Dra filer hit eller klicka för att ladda upp</p>
+                        <span id="upload-limit-text">Max 1 MB totalt (Free)</span>
+                        <input type="file" id="file-input" hidden multiple>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File List -->
+            <div class="file-list-container">
+                <div class="file-list-header">
+                    <h3>Dina filer</h3>
+                    <span id="file-count">0 filer</span>
+                </div>
+                <div class="upload-progress" id="upload-progress">
+                    <div class="upload-progress-bar">
+                        <div class="upload-progress-fill" id="upload-progress-fill"></div>
+                    </div>
+                    <div class="upload-progress-text" id="upload-progress-text">Laddar upp...</div>
+                </div>
+                <div class="file-list" id="file-list">
+                    <div class="file-empty" id="file-empty">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                        </svg>
+                        <p>Inga filer uppladdade ännu</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Account Settings -->
+        <section class="account-section">
+            <div class="section-header">
+                <h2>Kontoinställningar</h2>
+            </div>
+            <div class="account-grid">
+                <div class="account-card">
+                    <div class="account-card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <h3>Profilinformation</h3>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">E-postadress</span>
+                        <span class="account-item-value" id="profile-email">
+                            <div class="skeleton skeleton-text" style="width: 150px;"></div>
+                        </span>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">E-post verifierad</span>
+                        <span class="account-item-value" id="email-verified">
+                            <span class="status-badge verified">Verifierad</span>
+                        </span>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">Inloggningsmetod</span>
+                        <span class="account-item-value" id="auth-provider">E-post</span>
+                    </div>
+                </div>
+
+                <div class="account-card">
+                    <div class="account-card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <h3>Säkerhet</h3>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">Lösenord</span>
+                        <button class="account-btn" id="change-password-btn-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" width="14" height="14">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            Ändra
+                        </button>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">Senaste inloggning</span>
+                        <span class="account-item-value" id="last-login">Just nu</span>
+                    </div>
+                </div>
+
+                <div class="account-card" style="border-color: rgba(230, 50, 50, 0.2);">
+                    <div class="account-card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#ff8080">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <h3 style="color: #ff8080;">Farozon</h3>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">Radera permanent</span>
+                        <button class="account-btn danger" id="delete-account-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" width="14" height="14">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Radera konto
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Subscription Plan Card -->
+                <div class="account-card" style="border-color: rgba(255, 215, 0, 0.2);">
+                    <div class="account-card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#ffd700">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                        <h3>Prenumeration</h3>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">Nuvarande plan</span>
+                        <span class="account-item-value">
+                            <span class="status-badge" id="tier-badge">Free</span>
+                        </span>
+                    </div>
+                    <div class="account-item">
+                        <span class="account-item-label">Månatlig tilldelning</span>
+                        <span class="account-item-value" id="monthly-tokens">10 000 tokens</span>
+                    </div>
+                    <div class="account-item" style="border-bottom: none; padding-top: 16px;">
+                        <div id="tier-actions" style="display: flex; gap: 8px; width: 100%;">
+                            <!-- Buttons will be dynamically inserted based on current tier -->
+                            <button class="account-btn" id="upgrade-tier-btn"
+                                style="flex: 1; justify-content: center; background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 140, 66, 0.15)); border-color: rgba(255, 215, 0, 0.3); color: #ffd700;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" width="14" height="14">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                </svg>
+                                Uppgradera till Pro
+                            </button>
+                            <button class="account-btn danger" id="downgrade-tier-btn"
+                                style="flex: 1; justify-content: center; display: none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" width="14" height="14">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                                Nedgradera till Free
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <img src="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg"
+                    alt="Flyt" class="footer-logo">
+                <p class="footer-text">© 2026 Flyt. Alla rättigheter förbehållna.</p>
+                <p class="footer-text" style="font-style: italic;">Byggd för fokus.</p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Appen</h4>
+                    <a href="https://flytapp.se/download/windows/Flyt%20Setup%201.0.1.exe"
+                        class="footer-link download-link-windows">Ladda ner</a>
+                    <a href="#" class="footer-link">Changelog</a>
+                </div>
+                <div class="footer-column">
+                    <h4>Support</h4>
+                    <a href="mailto:flyt@flytapp.se" class="footer-link">Kontakt</a>
+                    <a href="#" class="footer-link">Integritet</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+
+    <!-- Change Password Modal -->
+    <div class="modal-overlay" id="password-modal">
+        <div class="modal">
+            <h3>Byt lösenord</h3>
+            <p>Ange ditt nya lösenord nedan. Du kommer att få ett bekräftelsemail.</p>
+            <input type="password" class="modal-input" id="new-password" placeholder="Nytt lösenord (minst 6 tecken)"
+                minlength="6">
+            <input type="password" class="modal-input" id="confirm-password" placeholder="Bekräfta lösenord">
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="cancel-password">Avbryt</button>
+                <button class="modal-btn primary" id="save-password">Spara lösenord</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Account Modal -->
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal">
+            <h3 style="color: #ff8080;">Radera konto</h3>
+            <p>Är du säker på att du vill radera ditt konto? Denna åtgärd kan inte ångras. Skriv <strong>RADERA</strong>
+                för att bekräfta.</p>
+            <input type="text" class="modal-input" id="delete-confirm" placeholder="Skriv RADERA">
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="cancel-delete">Avbryt</button>
+                <button class="modal-btn danger" id="confirm-delete">Radera permanent</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Tokens Modal -->
+    <div class="modal-overlay" id="add-tokens-modal">
+        <div class="modal">
+            <h3>Fyll på tokens</h3>
+            <p>Ange antal tokens att lägga till på ditt konto. (Betalning kommer snart)</p>
+            <input type="number" class="modal-input" id="token-amount" placeholder="Antal tokens (t.ex. 5000)" min="1"
+                step="1000">
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="cancel-add-tokens">Avbryt</button>
+                <button class="modal-btn primary" id="confirm-add-tokens">Lägg till tokens</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Tier Modal (Downgrade only now) -->
+    <div class="modal-overlay" id="tier-modal">
+        <div class="modal">
+            <h3 id="tier-modal-title">Ändra prenumeration</h3>
+            <p id="tier-modal-description">Är du säker på att du vill ändra din prenumeration?</p>
+            <div class="modal-actions" id="tier-modal-actions">
+                <button class="modal-btn secondary" id="cancel-tier-change">Avbryt</button>
+                <button class="modal-btn primary" id="confirm-tier-change">Bekräfta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Screen Payment Overlay -->
+    <div id="payment-overlay" class="payment-overlay">
+        <div class="payment-header">
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <div style="background: rgba(255,140,66,0.1); padding: 8px; border-radius: 12px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="#FF8C42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon
+                            points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                        </polygon>
+                    </svg>
+                </div>
+                <h2>Uppgradera till Pro</h2>
+            </div>
+            <button class="payment-close" id="close-payment-overlay">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div class="payment-content">
+            <div class="payment-summary">
+                <div class="payment-summary-title">Pro-planen</div>
+                <div class="payment-summary-price">
+                    179 kr
+                    <span class="payment-summary-period">/månad</span>
+                </div>
+
+                <div class="payment-features">
+                    <div class="payment-feature-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>200 000 tokens/månad</span>
+                    </div>
+                    <div class="payment-feature-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>20 MB fillagring</span>
+                    </div>
+                    <div class="payment-feature-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Prioriterad support</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Checkout Container (Moved here) -->
+            <div id="checkout-container" class="checkout-container">
+                <div id="checkout-loading" class="checkout-loading">
+                    <div class="checkout-spinner"></div>
+                    <p>Laddar säker betalning...</p>
+                </div>
+                <div id="checkout-element"></div>
+                <div id="checkout-error"></div>
+
+                <button id="checkout-submit">
+                    Starta prenumeration
+                </button>
+
+                <div class="secure-badge">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span>Säker betalning via Stripe med 256-bitars kryptering</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Message -->
+    <div class="message-toast" id="toast"></div>
+
+    <!-- Payment Success Overlay -->
+    <div class="success-overlay" id="success-overlay">
+        <div class="success-anim-container">
+            <div class="success-circle">
+                <div class="success-spinner" id="success-spinner"></div>
+                <svg class="success-check" id="success-check" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+        </div>
+        <h2 id="success-title">Slutför uppgradering</h2>
+        <p id="success-msg">Verifierar din betalning hos Stripe<span class="loading-dots"></span></p>
+    </div>
+
+    <script>
+        // Smart Download Link Script
+        (function () {
+            const downloadBaseUrl = 'https://flytapp.se/download/windows/';
+            const latestYmlUrl = downloadBaseUrl + 'latest.yml';
+            const downloadLinks = document.querySelectorAll('.download-link-windows');
+
+            async function updateDownloadLinks() {
+                try {
+                    // Fetch latest.yml to get the current version and file path
+                    const response = await fetch(latestYmlUrl);
+                    if (!response.ok) throw new Error('Failed to fetch latest.yml');
+                    const text = await response.text();
+
+                    // Simple regex to find the 'path:' field in YAML
+                    // Example: path: Flyt Setup 1.0.1.exe
+                    const pathMatch = text.match(/path:\s*(.*)/);
+                    if (pathMatch && pathMatch[1]) {
+                        const latestFilename = pathMatch[1].trim();
+                        const fullDownloadUrl = downloadBaseUrl + latestFilename;
+
+                        // Update all target links
+                        downloadLinks.forEach(link => {
+                            link.href = fullDownloadUrl;
+                        });
+                        console.log('Download links updated to:', latestFilename);
+                    }
+                } catch (error) {
+                    // Fail silently or log error
+                    console.error('Error updating download links:', error);
+                }
+            }
+
+            // Run on load
+            updateDownloadLinks();
+        })();
+    </script>
+    <script src="header.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+
+
+</html>

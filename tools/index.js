@@ -239,13 +239,13 @@ function formatToolResultVerbose(toolName, result) {
  */
 function formatToolResult(toolName, result, options = {}) {
   const { maxOutput = 2000, maxError = 500, iteration = 0, maxIterations = 15 } = options;
-  
+
   // Build header with optional iteration context
   let header = `[${toolName} ${result.success ? '✓' : '✗'}]`;
   if (iteration > 0) {
     header += ` (step ${iteration}/${maxIterations})`;
   }
-  
+
   if (result.success) {
     // Compact success format
     let output = result.output;
@@ -256,11 +256,11 @@ function formatToolResult(toolName, result, options = {}) {
   } else {
     // Compact error format - single location, no duplication
     let msg = `${header} ${result.error}`;
-    
+
     // Only add output if it contains NEW information not in the error
     if (result.output && !result.error.includes(result.output.substring(0, 50))) {
-      const truncatedOutput = result.output.length > maxError 
-        ? result.output.substring(0, maxError) + '...' 
+      const truncatedOutput = result.output.length > maxError
+        ? result.output.substring(0, maxError) + '...'
         : result.output;
       msg += `\n\`\`\`\n${truncatedOutput}\n\`\`\``;
     }

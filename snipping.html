@@ -254,6 +254,52 @@
             margin: 0 2px;
         }
 
+        #instructions .divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border-subtle);
+            margin: 0 var(--spacing-md);
+        }
+
+        #instructions .fullscreen-btn {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-lg);
+            background: var(--gradient-cta);
+            color: var(--text-on-accent);
+            border: none;
+            border-radius: var(--radius-md);
+            font-family: var(--font-family);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        #instructions .fullscreen-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(var(--color-primary-rgb, 99, 102, 241), 0.4);
+        }
+
+        #instructions .fullscreen-btn:active {
+            transform: scale(0.98);
+        }
+
+        #instructions .fullscreen-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        #instructions .fullscreen-btn kbd {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-left: var(--spacing-xs);
+        }
+
         /* ═══════════════════════════════════════════════════════════════════════════
          * TOOLBAR - with animations
          * ═══════════════════════════════════════════════════════════════════════════ */
@@ -388,6 +434,15 @@
     <div id="capture-flash"></div>
 
     <div id="instructions">
+        <button class="fullscreen-btn" id="fullscreen-btn">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+            Helbild
+            <kbd>Enter</kbd>
+        </button>
+        <div class="divider"></div>
         <div class="icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -423,6 +478,7 @@
         const confirmBtn = document.getElementById('confirm-btn');
         const cancelBtn = document.getElementById('cancel-btn');
         const captureFlash = document.getElementById('capture-flash');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
 
         let isSelecting = false;
         let startX = 0;
@@ -474,6 +530,7 @@
         // Mouse events for selection
         document.addEventListener('mousedown', (e) => {
             if (e.target.closest('.toolbar')) return;
+            if (e.target.closest('#instructions')) return; // Don't start selection on instruction bar clicks
 
             isSelecting = true;
             startX = e.clientX;
@@ -703,12 +760,65 @@
             await window.snipAPI.cancel();
         });
 
+        // Capture full screen (skip snipping)
+        async function captureFullScreen() {
+            // Trigger flash effect for satisfying feedback
+            captureFlash.classList.add('flash');
+            setTimeout(() => captureFlash.classList.remove('flash'), 300);
+
+            // Capture the entire canvas (full screen)
+            const dpr = window.devicePixelRatio || 1;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            // Create a temporary canvas for the full screen at full resolution
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width * dpr;
+            tempCanvas.height = height * dpr;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Copy the entire canvas at full resolution
+            tempCtx.drawImage(
+                canvas,
+                0, 0, width * dpr, height * dpr,
+                0, 0, width * dpr, height * dpr
+            );
+
+            // Get base64 image data with high quality
+            const imageData = tempCanvas.toDataURL('image/png', 1.0);
+
+            // Small delay for flash effect to be visible
+            await new Promise(resolve => setTimeout(resolve, 150));
+
+            // Send to main process
+            await window.snipAPI.complete({
+                imageData,
+                region: {
+                    x: offset.x,
+                    y: offset.y,
+                    width: width * dpr,
+                    height: height * dpr
+                }
+            });
+        }
+
+        // Fullscreen button click
+        fullscreenBtn.addEventListener('click', async (e) => {
+            e.stopPropagation(); // Prevent triggering selection
+            await captureFullScreen();
+        });
+
         // Keyboard shortcuts
         document.addEventListener('keydown', async (e) => {
             if (e.key === 'Escape') {
                 await window.snipAPI.cancel();
-            } else if (e.key === 'Enter' && currentSelection) {
-                confirmBtn.click();
+            } else if (e.key === 'Enter') {
+                // If there's a selection, confirm it; otherwise capture full screen
+                if (currentSelection) {
+                    confirmBtn.click();
+                } else {
+                    await captureFullScreen();
+                }
             }
         });
 

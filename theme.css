@@ -18,139 +18,139 @@
     /* ─────────────────────────────────────────────────────────────────────────
      * CORE PALETTE - Nordic Night Sky
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     /* Primary: Night Sky Blue - Deep, calming, mysterious */
     --color-primary: #1b263b;
     --color-primary-light: #2d3a52;
     --color-primary-dark: #0d1b2a;
     --color-primary-rgb: 27, 38, 59;
-    
+
     /* Secondary: Forest Green - Nature accent, subtle highlights */
     --color-secondary: #3A7A68;
     --color-secondary-light: #4CAF76;
     --color-secondary-dark: #2C5E50;
     --color-secondary-rgb: 58, 122, 104;
-    
+
     /* Accent 1: Lingonberry Red - Warm highlights and alerts */
     --color-accent-alert: #B83B5E;
     --color-accent-alert-light: #D14D72;
     --color-accent-alert-dark: #9A2E4C;
     --color-accent-alert-rgb: 184, 59, 94;
-    
+
     /* Accent 2: Cloudberry Orange - CTAs and important actions */
     --color-accent-cta: #FF8C42;
     --color-accent-cta-light: #FFA366;
     --color-accent-cta-dark: #E67A30;
     --color-accent-cta-rgb: 255, 140, 66;
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * SEMANTIC COLORS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     /* Success states - Forest green */
     --color-success: #4CAF76;
     --color-success-light: #6BC48A;
     --color-success-dark: #3D9160;
     --color-success-rgb: 76, 175, 118;
-    
+
     /* Error/Danger states - Lingonberry */
     --color-error: #B83B5E;
     --color-error-light: #D14D72;
     --color-error-dark: #9A2E4C;
     --color-error-rgb: 184, 59, 94;
-    
+
     /* Warning states - Cloudberry */
     --color-warning: #FF8C42;
     --color-warning-rgb: 255, 140, 66;
-    
+
     /* Info states - Muted sky blue */
     --color-info: #415a77;
     --color-info-rgb: 65, 90, 119;
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * BACKGROUND COLORS - Night Sky Theme
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     /* Main background - Deep night */
     --bg-primary: #0d1b2a;
     --bg-secondary: #1b263b;
     --bg-tertiary: #2d3a52;
-    
+
     /* Night sky variants */
     --bg-night-sky: #0a1628;
     --bg-night-sky-light: #1b263b;
-    
+
     /* Surface colors - Cards, panels, containers */
     --surface-primary: rgba(45, 58, 82, 0.4);
     --surface-secondary: rgba(45, 58, 82, 0.6);
     --surface-elevated: rgba(58, 122, 104, 0.15);
     --surface-overlay: rgba(13, 27, 42, 0.95);
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * TEXT COLORS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --text-primary: #e0e6ed;
     --text-secondary: rgba(224, 230, 237, 0.75);
     --text-tertiary: rgba(224, 230, 237, 0.55);
     --text-muted: rgba(224, 230, 237, 0.4);
     --text-on-primary: #0d1b2a;
     --text-on-accent: #0d1b2a;
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * BORDERS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --border-subtle: rgba(58, 122, 104, 0.15);
     --border-default: rgba(58, 122, 104, 0.25);
     --border-strong: rgba(58, 122, 104, 0.4);
     --border-focus: var(--color-accent-cta);
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * GRADIENTS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     /* Background gradient - Night sky depth */
     --gradient-bg: linear-gradient(135deg, #0d1b2a 0%, #1b263b 50%, #0a1628 100%);
-    
+
     /* Primary button/accent gradient - Forest green */
     --gradient-primary: linear-gradient(135deg, #2C5E50 0%, #3A7A68 100%);
-    
+
     /* CTA button gradient - Cloudberry orange */
     --gradient-cta: linear-gradient(135deg, #FF8C42 0%, #FFA366 100%);
-    
+
     /* Success gradient */
     --gradient-success: linear-gradient(135deg, #4CAF76 0%, #6BC48A 100%);
-    
+
     /* Alert gradient - Lingonberry */
     --gradient-alert: linear-gradient(135deg, #B83B5E 0%, #D14D72 100%);
-    
+
     /* AI/Assistant accent - Forest meets night */
     --gradient-ai: linear-gradient(135deg, #2C5E50 0%, #3A7A68 100%);
-    
+
     /* User message gradient - Warm accent */
     --gradient-user: linear-gradient(135deg, #B83B5E 0%, #D14D72 100%);
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * SHADOWS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-    
+
     --shadow-primary: 0 8px 16px rgba(58, 122, 104, 0.25);
     --shadow-cta: 0 8px 16px rgba(255, 140, 66, 0.35);
     --shadow-alert: 0 8px 16px rgba(184, 59, 94, 0.35);
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * TYPOGRAPHY
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     --font-mono: 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
-    
+
     --font-size-xs: 0.7rem;
     --font-size-sm: 0.75rem;
     --font-size-base: 0.875rem;
@@ -158,20 +158,20 @@
     --font-size-lg: 1rem;
     --font-size-xl: 1.25rem;
     --font-size-2xl: 2.5rem;
-    
+
     --font-weight-normal: 400;
     --font-weight-medium: 500;
     --font-weight-semibold: 600;
     --font-weight-bold: 700;
-    
+
     --line-height-tight: 1.25;
     --line-height-normal: 1.5;
     --line-height-relaxed: 1.75;
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * SPACING
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --spacing-xs: 4px;
     --spacing-sm: 6px;
     --spacing-md: 8px;
@@ -181,11 +181,11 @@
     --spacing-3xl: 24px;
     --spacing-4xl: 30px;
     --spacing-5xl: 40px;
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * BORDERS & RADIUS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --radius-sm: 4px;
     --radius-md: 6px;
     --radius-lg: 8px;
@@ -194,20 +194,20 @@
     --radius-3xl: 16px;
     --radius-4xl: 20px;
     --radius-full: 50%;
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * TRANSITIONS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --transition-fast: 0.15s ease;
     --transition-base: 0.2s ease;
     --transition-slow: 0.3s ease;
     --transition-slower: 0.4s ease;
-    
+
     /* ─────────────────────────────────────────────────────────────────────────
      * Z-INDEX LAYERS
      * ───────────────────────────────────────────────────────────────────────── */
-    
+
     --z-base: 1;
     --z-dropdown: 100;
     --z-modal: 1000;
@@ -224,7 +224,8 @@
     box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
     height: 100%;
     overflow: hidden;
 }
@@ -267,30 +268,53 @@ body {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @keyframes typing {
-    0%, 60%, 100% { transform: translateY(0); }
-    30% { transform: translateY(-8px); }
+
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+    }
+
+    30% {
+        transform: translateY(-8px);
+    }
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes slideUp {
-    from { 
+    from {
         opacity: 0;
         transform: translateY(10px);
     }
-    to { 
+
+    to {
         opacity: 1;
         transform: translateY(0);
     }
@@ -300,19 +324,49 @@ body {
  * UTILITY CLASSES
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-.text-primary { color: var(--text-primary); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted { color: var(--text-muted); }
-.text-success { color: var(--color-success); }
-.text-error { color: var(--color-error); }
-.text-warning { color: var(--color-warning); }
-.text-cta { color: var(--color-accent-cta); }
+.text-primary {
+    color: var(--text-primary);
+}
 
-.bg-surface { background: var(--surface-primary); }
-.bg-surface-elevated { background: var(--surface-elevated); }
+.text-secondary {
+    color: var(--text-secondary);
+}
 
-.border-subtle { border: 1px solid var(--border-subtle); }
-.border-default { border: 1px solid var(--border-default); }
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-success {
+    color: var(--color-success);
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+.text-warning {
+    color: var(--color-warning);
+}
+
+.text-cta {
+    color: var(--color-accent-cta);
+}
+
+.bg-surface {
+    background: var(--surface-primary);
+}
+
+.bg-surface-elevated {
+    background: var(--surface-elevated);
+}
+
+.border-subtle {
+    border: 1px solid var(--border-subtle);
+}
+
+.border-default {
+    border: 1px solid var(--border-default);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * COMPONENT STYLES
@@ -579,127 +633,417 @@ body {
 
 /* Color cycling animation for standard cubes */
 @keyframes colorCycleWarm {
-    0%, 100% {
-        background: #FF8C42; /* Cloudberry Orange */
+
+    0%,
+    100% {
+        background: #FF8C42;
+        /* Cloudberry Orange */
         box-shadow: 0 0 6px #FF8C42, 0 0 10px rgba(255, 140, 66, 0.5);
     }
+
     25% {
-        background: #B83B5E; /* Lingonberry Red */
+        background: #B83B5E;
+        /* Lingonberry Red */
         box-shadow: 0 0 6px #B83B5E, 0 0 10px rgba(184, 59, 94, 0.5);
     }
+
     50% {
-        background: #3A7A68; /* Forest Green */
+        background: #3A7A68;
+        /* Forest Green */
         box-shadow: 0 0 6px #3A7A68, 0 0 10px rgba(58, 122, 104, 0.5);
     }
+
     75% {
-        background: #4CAF76; /* Light Green */
+        background: #4CAF76;
+        /* Light Green */
         box-shadow: 0 0 6px #4CAF76, 0 0 10px rgba(76, 175, 118, 0.5);
     }
 }
 
 /* Color cycling for blue tool-use cubes (positions 2, 5, 8) */
 @keyframes colorCycleBlue {
-    0%, 100% {
-        background: #415a77; /* Info Blue */
+
+    0%,
+    100% {
+        background: #415a77;
+        /* Info Blue */
         box-shadow: 0 0 8px #415a77, 0 0 14px rgba(65, 90, 119, 0.6);
     }
+
     33% {
-        background: #1b263b; /* Night Sky */
+        background: #1b263b;
+        /* Night Sky */
         box-shadow: 0 0 8px #1b263b, 0 0 14px rgba(27, 38, 59, 0.6);
     }
+
     66% {
-        background: #2d3a52; /* Tertiary */
+        background: #2d3a52;
+        /* Tertiary */
         box-shadow: 0 0 8px #2d3a52, 0 0 14px rgba(45, 58, 82, 0.6);
     }
 }
 
-/* Shuffle animations for each cube position */
-@keyframes shuffle1 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(11px, 0) scale(0.9); }
-    40% { transform: translate(11px, 11px) scale(1.05); }
-    60% { transform: translate(0, 11px) scale(0.95); }
-    80% { transform: translate(0, 0) scale(1.02); }
+/* Shuffle animations for each cube position - Coordinated Ring Cycle */
+/* Grid Gap: 3px, Cube Size: 8px. Step distance: 11px */
+
+/* Top-Left (1) */
+@keyframes ringPos1 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(11px, 0);
+    }
+
+    25% {
+        transform: translate(22px, 0);
+    }
+
+    37.5% {
+        transform: translate(22px, 11px);
+    }
+
+    50% {
+        transform: translate(22px, 22px);
+    }
+
+    62.5% {
+        transform: translate(11px, 22px);
+    }
+
+    75% {
+        transform: translate(0, 22px);
+    }
+
+    87.5% {
+        transform: translate(0, 11px);
+    }
 }
 
-@keyframes shuffle2 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(11px, 0) scale(1.05); }
-    40% { transform: translate(0, 0) scale(0.9); }
-    60% { transform: translate(-11px, 0) scale(1.02); }
-    80% { transform: translate(-11px, 11px) scale(0.95); }
+/* Top-Mid (2) */
+@keyframes ringPos2 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(11px, 0);
+    }
+
+    25% {
+        transform: translate(11px, 11px);
+    }
+
+    37.5% {
+        transform: translate(11px, 22px);
+    }
+
+    50% {
+        transform: translate(0, 22px);
+    }
+
+    62.5% {
+        transform: translate(-11px, 22px);
+    }
+
+    75% {
+        transform: translate(-11px, 11px);
+    }
+
+    87.5% {
+        transform: translate(-11px, 0);
+    }
 }
 
-@keyframes shuffle3 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(0, 11px) scale(0.95); }
-    40% { transform: translate(-11px, 11px) scale(1.02); }
-    60% { transform: translate(-11px, 0) scale(0.9); }
-    80% { transform: translate(0, 0) scale(1.05); }
+/* Top-Right (3) */
+@keyframes ringPos3 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(0, 11px);
+    }
+
+    25% {
+        transform: translate(0, 22px);
+    }
+
+    37.5% {
+        transform: translate(-11px, 22px);
+    }
+
+    50% {
+        transform: translate(-22px, 22px);
+    }
+
+    62.5% {
+        transform: translate(-22px, 11px);
+    }
+
+    75% {
+        transform: translate(-22px, 0);
+    }
+
+    87.5% {
+        transform: translate(-11px, 0);
+    }
 }
 
-@keyframes shuffle4 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(0, -11px) scale(1.02); }
-    40% { transform: translate(11px, -11px) scale(0.95); }
-    60% { transform: translate(11px, 0) scale(1.05); }
-    80% { transform: translate(0, 0) scale(0.9); }
+/* Mid-Right (6) */
+@keyframes ringPos6 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(0, 11px);
+    }
+
+    25% {
+        transform: translate(-11px, 11px);
+    }
+
+    37.5% {
+        transform: translate(-22px, 11px);
+    }
+
+    50% {
+        transform: translate(-22px, 0);
+    }
+
+    62.5% {
+        transform: translate(-22px, -11px);
+    }
+
+    75% {
+        transform: translate(-11px, -11px);
+    }
+
+    87.5% {
+        transform: translate(0, -11px);
+    }
 }
 
-@keyframes shuffle5 {
-    0%, 100% { transform: translate(0, 0) scale(1.1); }
-    25% { transform: translate(0, 0) rotate(90deg) scale(0.85); }
-    50% { transform: translate(0, 0) rotate(180deg) scale(1.15); }
-    75% { transform: translate(0, 0) rotate(270deg) scale(0.9); }
+/* Bottom-Right (9) */
+@keyframes ringPos9 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(-11px, 0);
+    }
+
+    25% {
+        transform: translate(-22px, 0);
+    }
+
+    37.5% {
+        transform: translate(-22px, -11px);
+    }
+
+    50% {
+        transform: translate(-22px, -22px);
+    }
+
+    62.5% {
+        transform: translate(-11px, -22px);
+    }
+
+    75% {
+        transform: translate(0, -22px);
+    }
+
+    87.5% {
+        transform: translate(0, -11px);
+    }
 }
 
-@keyframes shuffle6 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(0, 11px) scale(1.05); }
-    40% { transform: translate(-11px, 11px) scale(0.9); }
-    60% { transform: translate(-11px, 0) scale(1.02); }
-    80% { transform: translate(0, -11px) scale(0.95); }
+/* Bottom-Mid (8) */
+@keyframes ringPos8 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(-11px, 0);
+    }
+
+    25% {
+        transform: translate(-11px, -11px);
+    }
+
+    37.5% {
+        transform: translate(-11px, -22px);
+    }
+
+    50% {
+        transform: translate(0, -22px);
+    }
+
+    62.5% {
+        transform: translate(11px, -22px);
+    }
+
+    75% {
+        transform: translate(11px, -11px);
+    }
+
+    87.5% {
+        transform: translate(11px, 0);
+    }
 }
 
-@keyframes shuffle7 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(11px, 0) scale(0.95); }
-    40% { transform: translate(11px, -11px) scale(1.05); }
-    60% { transform: translate(0, -11px) scale(0.9); }
-    80% { transform: translate(0, 0) scale(1.02); }
+/* Bottom-Left (7) */
+@keyframes ringPos7 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(0, -11px);
+    }
+
+    25% {
+        transform: translate(0, -22px);
+    }
+
+    37.5% {
+        transform: translate(11px, -22px);
+    }
+
+    50% {
+        transform: translate(22px, -22px);
+    }
+
+    62.5% {
+        transform: translate(22px, -11px);
+    }
+
+    75% {
+        transform: translate(22px, 0);
+    }
+
+    87.5% {
+        transform: translate(11px, 0);
+    }
 }
 
-@keyframes shuffle8 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(-11px, 0) scale(1.02); }
-    40% { transform: translate(0, 0) scale(0.95); }
-    60% { transform: translate(11px, 0) scale(1.05); }
-    80% { transform: translate(11px, -11px) scale(0.9); }
+/* Mid-Left (4) */
+@keyframes ringPos4 {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    12.5% {
+        transform: translate(0, -11px);
+    }
+
+    25% {
+        transform: translate(11px, -11px);
+    }
+
+    37.5% {
+        transform: translate(22px, -11px);
+    }
+
+    50% {
+        transform: translate(22px, 0);
+    }
+
+    62.5% {
+        transform: translate(22px, 11px);
+    }
+
+    75% {
+        transform: translate(11px, 11px);
+    }
+
+    87.5% {
+        transform: translate(0, 11px);
+    }
 }
 
-@keyframes shuffle9 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    20% { transform: translate(0, -11px) scale(0.9); }
-    40% { transform: translate(-11px, -11px) scale(1.02); }
-    60% { transform: translate(-11px, 0) scale(1.05); }
-    80% { transform: translate(0, 0) scale(0.95); }
+/* Center Pulse (5) */
+@keyframes centerPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(0.85);
+    }
 }
 
-/* Standard thinking mode - all cubes use warm colors */
-.cube-loader .cube:nth-child(1) { animation: shuffle1 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite, colorCycleWarm 4s ease-in-out infinite; }
-.cube-loader .cube:nth-child(2) { animation: shuffle2 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s infinite, colorCycleWarm 4s ease-in-out 0.5s infinite; }
-.cube-loader .cube:nth-child(3) { animation: shuffle3 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.2s infinite, colorCycleWarm 4s ease-in-out 1s infinite; }
-.cube-loader .cube:nth-child(4) { animation: shuffle4 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.3s infinite, colorCycleWarm 4s ease-in-out 1.5s infinite; }
-.cube-loader .cube:nth-child(5) { animation: shuffle5 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.4s infinite, colorCycleWarm 4s ease-in-out 2s infinite; }
-.cube-loader .cube:nth-child(6) { animation: shuffle6 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.5s infinite, colorCycleWarm 4s ease-in-out 2.5s infinite; }
-.cube-loader .cube:nth-child(7) { animation: shuffle7 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.6s infinite, colorCycleWarm 4s ease-in-out 3s infinite; }
-.cube-loader .cube:nth-child(8) { animation: shuffle8 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.7s infinite, colorCycleWarm 4s ease-in-out 3.5s infinite; }
-.cube-loader .cube:nth-child(9) { animation: shuffle9 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.8s infinite, colorCycleWarm 4s ease-in-out 0.25s infinite; }
+/* Standard thinking mode - synchronized ring cycle */
+.cube-loader .cube:nth-child(1) {
+    animation: ringPos1 4s linear infinite, colorCycleWarm 4s ease-in-out infinite;
+}
 
-/* Tool usage mode - positions 3, 6, 9 (1-indexed: 3rd cubes) use blue colors */
-.cube-loader.tool-mode .cube:nth-child(3) { animation: shuffle3 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.2s infinite, colorCycleBlue 2.5s ease-in-out infinite !important; }
-.cube-loader.tool-mode .cube:nth-child(6) { animation: shuffle6 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.5s infinite, colorCycleBlue 2.5s ease-in-out 0.8s infinite !important; }
-.cube-loader.tool-mode .cube:nth-child(9) { animation: shuffle9 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.8s infinite, colorCycleBlue 2.5s ease-in-out 1.6s infinite !important; }
+.cube-loader .cube:nth-child(2) {
+    animation: ringPos2 4s linear infinite, colorCycleWarm 4s ease-in-out 0.5s infinite;
+}
+
+.cube-loader .cube:nth-child(3) {
+    animation: ringPos3 4s linear infinite, colorCycleWarm 4s ease-in-out 1s infinite;
+}
+
+.cube-loader .cube:nth-child(4) {
+    animation: ringPos4 4s linear infinite, colorCycleWarm 4s ease-in-out 1.5s infinite;
+}
+
+.cube-loader .cube:nth-child(5) {
+    animation: centerPulse 2s ease-in-out infinite, colorCycleWarm 4s ease-in-out 2s infinite;
+}
+
+.cube-loader .cube:nth-child(6) {
+    animation: ringPos6 4s linear infinite, colorCycleWarm 4s ease-in-out 2.5s infinite;
+}
+
+.cube-loader .cube:nth-child(7) {
+    animation: ringPos7 4s linear infinite, colorCycleWarm 4s ease-in-out 3s infinite;
+}
+
+.cube-loader .cube:nth-child(8) {
+    animation: ringPos8 4s linear infinite, colorCycleWarm 4s ease-in-out 3.5s infinite;
+}
+
+.cube-loader .cube:nth-child(9) {
+    animation: ringPos9 4s linear infinite, colorCycleWarm 4s ease-in-out 0.25s infinite;
+}
+
+/* Tool usage mode - positions 3, 6, 9 (right column) use blue colors */
+.cube-loader.tool-mode .cube:nth-child(3) {
+    animation: ringPos3 4s linear infinite, colorCycleBlue 2.5s ease-in-out infinite !important;
+}
+
+.cube-loader.tool-mode .cube:nth-child(6) {
+    animation: ringPos6 4s linear infinite, colorCycleBlue 2.5s ease-in-out 0.8s infinite !important;
+}
+
+.cube-loader.tool-mode .cube:nth-child(9) {
+    animation: ringPos9 4s linear infinite, colorCycleBlue 2.5s ease-in-out 1.6s infinite !important;
+}
 
 /* ===== Activity Details Dropdown ===== */
 .thinking-details {

@@ -89,7 +89,7 @@ class RunCommandTool extends BaseTool {
       });
 
       const output = stdout + (stderr ? `\n[STDERR]: ${stderr}` : '');
-      const truncatedOutput = output.length > 50000 
+      const truncatedOutput = output.length > 50000
         ? output.substring(0, 50000) + '\n... [output truncated, showing first 50KB]'
         : output;
 
@@ -108,14 +108,14 @@ class RunCommandTool extends BaseTool {
 
       // Include partial output even on error
       const output = (error.stdout || '') + (error.stderr ? `\n[STDERR]: ${error.stderr}` : '');
-      const truncatedOutput = output.length > 50000 
+      const truncatedOutput = output.length > 50000
         ? output.substring(0, 50000) + '\n... [output truncated]'
         : output;
 
       return ToolResult.failure(
         error.message,
         truncatedOutput || 'No output captured',
-        { 
+        {
           exitCode: error.code,
           signal: error.signal,
           killed: error.killed
@@ -276,10 +276,10 @@ class KillProcessTool extends BaseTool {
 
     try {
       let command;
-      
+
       if (process.platform === 'win32') {
         if (pid) {
-          command = force 
+          command = force
             ? `taskkill /PID ${pid} /F`
             : `taskkill /PID ${pid}`;
         } else {
@@ -297,7 +297,7 @@ class KillProcessTool extends BaseTool {
       }
 
       const { stdout, stderr } = await execAsync(command, { timeout: this.timeout });
-      
+
       return ToolResult.success(
         `Process terminated successfully.\n${stdout}${stderr ? '\n' + stderr : ''}`,
         { pid, name, force }

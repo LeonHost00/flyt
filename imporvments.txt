@@ -1,0 +1,303 @@
+Flyt Electron App - Code Review Findings
+Severity Legend
+🔴 CRITICAL - Security vulnerabilities, data loss risks, or major bugs
+🟠 HIGH - Significant issues affecting reliability or maintainability
+🟡 MEDIUM - Inefficiencies, code smells, or minor bugs
+🟢 LOW - Minor improvements, style issues, or nice-to-haves
+🔴 CRITICAL Issues
+1. Hardcoded Supabase Credentials in Source Code
+Location: 
+main.js:169-170
+
+const SUPABASE_URL = 'https://cddircpnawvpryttmpel.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_lDoWq98zufz9gRxUCSl-3A_NXIWcpyJ';
+Issue: Supabase URL and key are hardcoded directly in source code. While the key appears to be a publishable/anon key (which is designed to be public), this approach:
+
+Makes rotation difficult without redeploying
+Exposes infrastructure details in git history
+Could be confused with secret keys in the future
+Recommendation: Use environment variables via dotenv (already a dependency but not used for this).
+
+
+🟠 HIGH Issues
+4. Main.js is 2600+ Lines - Monolithic Architecture
+Location: 
+main.js
+
+Issue: The main process file is over 2,596 lines long, handling:
+
+Authentication (lines 450-1150)
+Token management (lines 483-675)
+LLM chat with agent loop (lines 1365-1700)
+System info collection (lines 1973-2270)
+Snipping tool (lines 350-444, 2345-2434)
+Window management (lines 798-907)
+IPC handlers for everything
+Tray creation (lines 219-290)
+Auto-update (lines 24-70)
+Recommendation: Split into modules:
+
+auth.js - Authentication logic
+tokens.js - Token management
+llm.js - LLM/agent logic
+windows.js - Window management
+snipping.js - Screen capture
+5. Duplicated System Info Logic
+Location:
+
+main.js:1973-2270
+ - system:getInfo handler (~300 lines)
+main.js:2273-2343
+ - system:refreshProcesses handler (duplicates power/clipboard/process logic)
+tools/system.js:261-367
+ - 
+SystemInfoTool
+ (another implementation)
+Issue: System information collection is implemented 3 times with overlapping but different logic.
+
+Recommendation: Create a single collectSystemInfo(options) function that all three can use.
+
+6. Tool Confirmation Setting Not Enforced
+Location: 
+tools/base.js
+, 
+main.js:1612
+
+Issue: Several tools declare requiresConfirmation: true:
+
+write_file
+edit_file
+delete
+kill_process
+But the agent loop in main.js never checks this flag before executing dangerous tools.
+
+Recommendation: Add confirmation prompting in the agent loop for tools with requiresConfirmation: true.
+
+7. Background Processes Never Cleaned Up
+Location: 
+tools/shell.js:159
+
+this.backgroundProcesses = new Map();
+Issue: 
+BackgroundCommandTool
+ stores spawned processes in a Map, but:
+
+This Map is never accessed by other tools
+There's no way to list running background processes
+On app quit, these processes are orphaned (only unref() is called)
+Recommendation:
+
+Add a list_background tool or include status in system_info
+Properly terminate background processes on app quit
+🟡 MEDIUM Issues
+8. Renderer.js Global Variables Pattern
+Location: 
+renderer.js:39-51
+
+let conversationHistory = [];
+let isTyping = false;
+let systemInfo = null;
+let currentUserData = null;
+let attachedImages = [];
+let currentTokens = 0;
+let systemPromptFromServer = null;
+Issue: Heavy reliance on global variables makes state management difficult to reason about and test.
+
+Recommendation: Consider using a simple state management pattern or encapsulating in a class.
+
+9. Cost Tracking Uses Undocumented API
+Location: 
+main.js:680-721
+
+async function getOpenRouterGenerationCost(generationId, retries = 3, delayMs = 500) {
+  const response = await fetch(`https://openrouter.ai/api/v1/generation?id=${generationId}`, ...);
+Issue: This endpoint is queried with multiple retries to get cost info, which:
+
+Adds latency (up to 1.5+ seconds)
+May not be a stable/documented API
+Has complex fallback logic when cost isn't returned
+Recommendation: Consider using streaming responses with usage info or accepting estimated costs.
+
+10. Model Pricing Hardcoded
+Location: 
+main.js:657-677
+
+function getModelPricing(model) {
+  const pricing = {
+    'google/gemini-2.5-flash-preview': { input: 0.15, output: 0.60 },
+    // ... more models
+  };
+Issue: Model pricing is hardcoded and will become outdated as providers change prices.
+
+Recommendation: Fetch from OpenRouter API or store in Supabase app_settings.
+
+11. Inefficient Full System Info on Every Chat
+Location: 
+renderer.js:220-231
+
+async function loadSystemInfo() {
+  const result = await window.systemAPI.getInfo();
+Issue: Full system info (including disk space, processes, displays, etc.) is fetched on every chat initialization. This includes expensive operations like:
+
+Checking 17 dev tools via command execution
+Network connectivity ping
+PowerShell queries for battery/disk
+Recommendation: Cache system info and refresh only specific sections when needed.
+
+12. Magic Numbers Throughout Codebase
+Location: Multiple files
+
+Examples:
+
+main.js:1399: MAX_TOOL_ITERATIONS = 15
+main.js:1433: max_tokens: 4096
+main.js:1711: MODEL_CACHE_TTL = 60000
+main.js:1716: API_KEY_CACHE_TTL = 300000
+renderer.js:596: setInterval(..., 2500)
+Recommendation: Consolidate configuration into a single config object or file.
+
+13. No Rate Limiting on Tool Execution
+Location: 
+main.js:1405-1652
+
+Issue: The agent loop allows up to 15 tool iterations without any rate limiting or timeout between iterations. A runaway agent could:
+
+Execute many commands rapidly
+Consume significant resources
+Rack up token costs quickly
+Recommendation: Add per-iteration delays or overall time limits.
+
+14. Error Messages Sometimes Exposed Raw
+Location: Various IPC handlers
+
+Issue: Many handlers return raw error.message to renderer:
+
+return { success: false, error: error.message };
+This could expose internal details to users.
+
+Recommendation: Log full errors server-side, return user-friendly messages.
+
+🟢 LOW Issues
+15. Console Logs in Production
+Location: Throughout all files
+
+Issue: Extensive console.log statements throughout the codebase. While useful for debugging, these add noise in production.
+
+Recommendation: Use a logging library with log levels (debug/info/warn/error).
+
+16. Swedish/English Mixed UI Strings
+Location: 
+renderer.js
+, 
+main.js
+
+Issue: UI strings mix Swedish and English:
+
+Swedish: "Tänker...", "Arbetar...", "Inte inloggad"
+English: "Tool Execution Result", "Clipboard is empty"
+Recommendation: Centralize strings for consistent localization.
+
+17. Token Estimate Approximation
+Location: 
+main.js:1349-1363
+
+function estimateTokenCount(messages) {
+  return Math.ceil(totalChars / 4);  // ~4 chars per token
+Issue: Using 4 chars/token is a rough approximation that varies by language and model.
+
+Recommendation: Document this limitation or use tiktoken.
+
+18. No TypeScript
+Location: Entire codebase
+
+Issue: The entire codebase is plain JavaScript without TypeScript, making it harder to:
+
+Catch type errors at compile time
+Document function signatures
+Refactor safely
+Recommendation: Consider gradual TypeScript migration, starting with tools/.
+
+Summary by Severity
+Severity	Count	Effort to Fix
+🔴 CRITICAL	3	Low-Medium
+🟠 HIGH	4	Medium-High
+🟡 MEDIUM	7	Medium
+🟢 LOW	6	Low
+Recommended Priority
+Immediate: Fix #2 (unused IPC handler) and #3 (unused dependency) - quick wins
+Short-term: Address #1 (credentials) and #6 (tool confirmation)
+Medium-term: Refactor #4 (monolithic main.js) and #5 (duplicated logic)
+Long-term: Consider #18 (TypeScript migration)
+
+
+
+
+
+19. Token Deduction Race Condition (TOCTOU)
+Location: 
+main.js:541-605
+
+Issue: `deductTokens` fetches the balance, calculates the new value locally, and then updates it. This is a classic race condition. If multiple AI requests process simultaneously, one deduction will likely overwrite the other, leading to inaccurate token billing.
+
+Recommendation: Use a Supabase RPC function to perform an atomic decrement in the database: `UPDATE user_profiles SET tokens = tokens - amount WHERE id = userId`.
+
+20. Insecure Storage of API Keys
+Location: 
+supabase/migrations/20260111100000_add_app_settings.sql
+
+Issue: The `app_settings` table has a `USING (true)` policy for `SELECT`. Since `openrouter_api_key` is stored here, any authenticated user can potentially query and steal the global API key.
+
+Recommendation: Move sensitive keys to a dedicated `secrets` table with restricted RLS (service_role only) or use Supabase Vault.
+
+🟠 HIGH Issues
+21. Session Loss on Machine Identifier Changes
+Location: 
+main.js:73-103, 178-209
+
+Issue: `getMachineEncryptionKey` relies on `os.hostname()` and `os.userInfo().username`. If a user renames their computer or changes their OS username, the encryption key changes. The app then detects a decryption failure and *automatically deletes the entire store file*, forcing the user to log in again.
+
+Recommendation: Use a more stable unique identifier (like hardware UUID) or handle decryption failures more gracefully without immediate data deletion.
+
+22. Inefficient pure JS SearchFilesTool
+Location: 
+tools/filesystem.js:492-637
+
+Issue: `SearchFilesTool` uses a manual recursive traversal in Node.js. In projects with many files (e.g., node_modules), this will be extremely slow and block the main process.
+
+Recommendation: Use a more optimized library or delegate to native tools like `rg` (ripgrep) which is significantly faster.
+
+🟡 MEDIUM Issues
+23. Lack of Database Transactions for Tokens
+Location: 
+main.js:541-605
+
+Issue: Updating the user's token balance and recording the transaction in `token_transactions` are separate asynchronous calls. If the second call fails, the transaction history will not match the actual balance.
+
+Recommendation: Use a database transaction or a single RPC function to ensure both operations succeed or fail together.
+
+24. Auto-Launch Enabled by Default
+Location: 
+main.js:2501-2510
+
+Issue: The app automatically enables itself to start with Windows/OS upon first run without asking the user. This can be perceived as intrusive.
+
+Recommendation: Add a setting or an onboarding step where the user explicitly opts in to auto-launch.
+
+Summary by Severity (Updated)
+Severity	Count	Effort to Fix
+🔴 CRITICAL	5	Medium
+🟠 HIGH	6	High
+🟡 MEDIUM	9	Medium
+🟢 LOW	6	Low
+
+Recommended Priority
+1. Immediate: Fix #19 (Token Race Condition) and #20 (API Key Security) - Critical financial/security risks.
+2. Short-term: Fix #21 (Session Stability) to improve user retention.
+3. Medium-term: Address #22 (Search Performance) for better agent responsiveness.
+
+
+
+
+
+
+

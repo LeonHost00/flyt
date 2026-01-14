@@ -18,11 +18,6 @@ contextBridge.exposeInMainWorld('authAPI', {
   }
 });
 
-// Supabase Data API - exposed to renderer for data operations
-contextBridge.exposeInMainWorld('supabaseAPI', {
-  fetchData: (tableName) => ipcRenderer.invoke('supabase-query', tableName)
-});
-
 // LLM API - exposed to renderer for AI chat
 // Note: Model is controlled server-side via Supabase app_settings
 contextBridge.exposeInMainWorld('llmAPI', {

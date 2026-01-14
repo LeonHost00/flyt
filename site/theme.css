@@ -1,0 +1,182 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FLYT THEME - Shared Styles
+ * Nordic Night Sky Theme
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    /* Core Palette - Nordic Night */
+    --bg-deep: #050a14;
+    --bg-primary: #0d1b2a;
+    --bg-secondary: #1b263b;
+    --bg-glass: rgba(27, 38, 59, 0.7);
+
+    /* Accents */
+    --color-forest: #3A7A68;
+    --color-forest-light: #4CAF76;
+    --color-nordic-blue: #4e89ae;
+
+    /* CTA: Cloudberry Orange */
+    --color-accent: #FF8C42;
+    --color-accent-light: #FFA366;
+    --color-accent-dark: #E67A30;
+    --color-accent-glow: rgba(255, 140, 66, 0.3);
+
+    /* Danger */
+    --color-danger: #e63232;
+    --color-danger-light: #ff5555;
+    --color-danger-glow: rgba(230, 50, 50, 0.3);
+
+    /* Text */
+    --text-primary: #f0f4f8;
+    --text-secondary: #b0c4de;
+    --text-muted: rgba(176, 196, 222, 0.5);
+
+    /* Borders & Shadows */
+    --border-glass: rgba(255, 255, 255, 0.08);
+    --border-accent: rgba(58, 122, 104, 0.3);
+    --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-accent: 0 0 20px var(--color-accent-glow);
+
+    /* Typography */
+    --font-main: 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'Inter', sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * RESET & BASE
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-body);
+    background-color: var(--bg-deep);
+    background-image:
+        radial-gradient(circle at 20% 20%, rgba(58, 122, 104, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(78, 137, 174, 0.1) 0%, transparent 40%);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--font-main);
+    font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * COMMON COMPONENTS
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.section-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    background: rgba(58, 122, 104, 0.15);
+    color: var(--color-forest-light);
+    border-radius: 100px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FOOTER
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.footer {
+    padding: 60px 20px;
+    border-top: 1px solid var(--border-glass);
+    background: var(--bg-deep);
+    width: 100%;
+}
+
+/* Dashboard-specific footer spacing */
+.dashboard-main+.footer {
+    margin-top: 80px;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.footer-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.footer-logo {
+    height: 32px;
+    opacity: 0.8;
+}
+
+.footer-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.footer-links {
+    display: flex;
+    gap: 40px;
+}
+
+.footer-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.footer-column h4 {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.footer-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+.footer-link:hover {
+    color: var(--color-accent);
+}
+
+@media (max-width: 768px) {
+    .footer-content {
+        flex-direction: column;
+        gap: 40px;
+        text-align: center;
+        align-items: center;
+    }
+
+    .footer-brand {
+        align-items: center;
+    }
+}

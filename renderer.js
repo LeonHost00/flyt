@@ -91,10 +91,10 @@ function displayUserInfo(user) {
     currentUserData = user;
     if (user.email) {
         userEmail.textContent = user.email;
-        
+
         // Try to get profile picture from user_metadata (Supabase/Google)
         const avatarUrl = user.user_metadata?.avatar_url;
-        
+
         if (avatarUrl) {
             userAvatar.innerHTML = `<img src="${avatarUrl}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
             userAvatar.style.padding = '0';
@@ -145,7 +145,7 @@ function updateTokenDisplay(tokens) {
         tokenBalance.title = 'Lågt tokensaldo! Överväg att uppgradera din nivå.';
     } else {
         tokenBalance.classList.remove('low');
-        tokenBalance.title = `${tokens.toLocaleString()} tokens (~$${(tokens / 10000).toFixed(2)} värde)`;
+        tokenBalance.title = `${tokens.toLocaleString()} tokens`;
     }
 }
 
@@ -242,12 +242,12 @@ const SYSTEM_CONTEXT_CONFIG = {
  */
 function buildMinimalSystemContext() {
     if (!systemInfo) return '';
-    
+
     // Only essential info: OS, user, shell, dev tools, time
     const devTools = Object.entries(systemInfo.devTools || {})
         .map(([name, ver]) => `${name}:${ver}`)
         .join(' ');
-    
+
     return `## System
 OS: ${systemInfo.osType} ${systemInfo.osRelease}, User: ${systemInfo.username}, Shell: ${systemInfo.shell}
 Dev: ${devTools || 'none'}
@@ -348,7 +348,7 @@ function buildSystemPrompt() {
     }
 
     // Use minimal or full context based on config
-    const systemContext = SYSTEM_CONTEXT_CONFIG.useMinimalContext 
+    const systemContext = SYSTEM_CONTEXT_CONFIG.useMinimalContext
         ? buildMinimalSystemContext()
         : buildFullSystemContext();
 
@@ -583,7 +583,7 @@ function getRandomThinkingText() {
 // Update thinking text periodically
 function startThinkingTextCycle() {
     if (thinkingTextInterval) return;
-    
+
     thinkingTextInterval = setInterval(() => {
         const textElement = document.querySelector('#thinking-indicator .thinking-text');
         if (textElement) {
@@ -607,7 +607,7 @@ function stopThinkingTextCycle() {
 // Show or update the thinking indicator
 function showThinkingIndicator(actionText = null, toolMode = false) {
     removeTypingIndicator();
-    
+
     isToolMode = toolMode || toolExecutionHistory.length > 0;
     const displayText = actionText || getRandomThinkingText();
 
@@ -617,32 +617,61 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
         thinkingDiv = document.createElement('div');
         thinkingDiv.className = 'chat-message assistant thinking-container';
         thinkingDiv.id = 'thinking-indicator';
+
+        thinkingDiv.innerHTML = `
+            <div class="message-avatar">
+                <img src="assets/logo.svg" alt="AI" style="width: 18px; height: 18px; filter: brightness(0) invert(1);">
+            </div>
+            <div class="thinking-content">
+                <div class="thinking-header">
+                    <div class="cube-loader">
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                        <div class="cube"></div>
+                    </div>
+                    <span class="thinking-text"></span>
+                </div>
+                <div class="thinking-details-container"></div>
+            </div>
+        `;
         chatMessages.appendChild(thinkingDiv);
     }
 
-    const cubeLoaderClass = isToolMode ? 'cube-loader tool-mode' : 'cube-loader';
+    // Update text
+    const textElement = thinkingDiv.querySelector('.thinking-text');
+    if (textElement && textElement.textContent !== displayText) {
+        textElement.textContent = displayText;
+    }
 
-    thinkingDiv.innerHTML = `
-        <div class="message-avatar">
-            <img src="assets/logo.svg" alt="AI" style="width: 18px; height: 18px; filter: brightness(0) invert(1);">
-        </div>
-        <div class="thinking-content">
-            <div class="thinking-header">
-                <div class="${cubeLoaderClass}">
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                    <div class="cube"></div>
-                </div>
-                <span class="thinking-text">${escapeHtml(displayText)}</span>
-            </div>
-            ${toolExecutionHistory.length > 0 ? `
-            <details class="thinking-details">
+    // Update cube loader mode
+    const cubeLoader = thinkingDiv.querySelector('.cube-loader');
+    if (cubeLoader) {
+        if (isToolMode) {
+            cubeLoader.classList.add('tool-mode');
+        } else {
+            cubeLoader.classList.remove('tool-mode');
+        }
+    }
+
+    // Update history/details
+    const detailsContainer = thinkingDiv.querySelector('.thinking-details-container');
+    if (detailsContainer) {
+        if (toolExecutionHistory.length > 0) {
+            let detailsElement = detailsContainer.querySelector('.thinking-details');
+
+            if (!detailsElement) {
+                detailsElement = document.createElement('details');
+                detailsElement.className = 'thinking-details';
+                detailsContainer.appendChild(detailsElement);
+            }
+
+            const historyHtml = `
                 <summary>Visa aktivitet (${toolExecutionHistory.length})</summary>
                 <div class="thinking-history">
                     ${toolExecutionHistory.map(t => `
@@ -653,9 +682,19 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
                         </div>
                     `).join('')}
                 </div>
-            </details>` : ''}
-        </div>
-    `;
+            `;
+
+            // Only update if content changed to avoid unnecessary reflows
+            if (detailsElement.innerHTML !== historyHtml) {
+                // Preserve 'open' state if it was already open
+                const wasOpen = detailsElement.open;
+                detailsElement.innerHTML = historyHtml;
+                if (wasOpen) detailsElement.open = true;
+            }
+        } else {
+            detailsContainer.innerHTML = '';
+        }
+    }
 
     chatMessages.scrollTop = chatMessages.scrollHeight;
     startThinkingTextCycle();
@@ -827,11 +866,7 @@ function clearChat() {
     attachedImages = [];
     renderAttachedImages();
     chatMessages.innerHTML = `
-        <div class="chat-empty">
-            <img src="assets/name.svg" alt="Flyt" style="width: 150px; margin-bottom: 20px; opacity: 0.6;">
-            <p>Starta en konversation!</p>
-            <p style="font-size: 0.8rem; margin-top: 8px;">Ställ frågor, få hjälp med kod eller ta en skärmbild!</p>
-        </div>
+        <div class="chat-empty"></div>
     `;
 }
 

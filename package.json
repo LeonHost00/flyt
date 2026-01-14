@@ -1,6 +1,6 @@
 {
   "name": "flyt",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "author": "Leon <flyt@flytapp.se>",
   "description": "Flyt - Your AI-powered desktop assistant",
   "main": "main.js",
@@ -13,7 +13,6 @@
     "@imagemagick/magick-wasm": "^0.0.37",
     "@supabase/supabase-js": "^2.39.0",
     "auto-launch": "^5.0.6",
-    "dotenv": "^17.2.3",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.7.3"
   },
@@ -21,10 +20,6 @@
     "electron": "^28.0.0",
     "electron-builder": "^26.4.0",
     "supabase": "^2.72.3"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/klirrnu/flyt.git"
   },
   "build": {
     "appId": "com.flyt.app",

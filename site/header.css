@@ -1,0 +1,340 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FLYT HEADER - Navigation Component Styles
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.flyt-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 20px;
+    z-index: 1000;
+    background: rgba(27, 38, 59, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.3s ease;
+}
+
+/* Transparent state for landing page */
+.flyt-nav.transparent {
+    background: transparent;
+    border-bottom-color: transparent;
+    padding: 24px 40px;
+}
+
+.flyt-nav.scrolled {
+    background: rgba(13, 27, 42, 0.95);
+    padding: 12px 30px;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.nav-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.flyt-nav .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    z-index: 1002;
+    position: relative;
+}
+
+.flyt-nav .nav-logo img {
+    height: 32px;
+    transition: all 0.3s;
+}
+
+.flyt-nav.transparent .nav-logo img {
+    height: 40px;
+}
+
+.flyt-nav.scrolled .nav-logo img {
+    height: 28px;
+}
+
+/* Desktop Menu */
+.flyt-nav .nav-links {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+}
+
+.flyt-nav .nav-link {
+    color: #b0c4de;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.flyt-nav .nav-link:hover {
+    color: #f0f4f8;
+}
+
+.flyt-nav .nav-user-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* User Badge */
+.flyt-nav .user-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px 6px 6px;
+    background: rgba(255, 140, 66, 0.15);
+    border: 1px solid rgba(255, 140, 66, 0.3);
+    border-radius: 100px;
+    cursor: default;
+}
+
+.flyt-nav .user-initial {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #FF8C42, #E67A30);
+    color: #0d1b2a;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.flyt-nav .user-name {
+    color: #f0f4f8;
+    font-size: 0.9rem;
+    font-weight: 600;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Buttons */
+.flyt-nav .nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-family: inherit;
+}
+
+.flyt-nav .logout-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #b0c4de;
+}
+
+.flyt-nav .logout-btn:hover {
+    background: rgba(230, 50, 50, 0.15);
+    border-color: rgba(230, 50, 50, 0.3);
+    color: #ff8080;
+}
+
+.flyt-nav .nav-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: #FF8C42;
+    color: #0d1b2a;
+    text-decoration: none;
+    border-radius: 100px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.flyt-nav .nav-cta:hover {
+    background: #FFA366;
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 20px rgba(255, 140, 66, 0.3);
+}
+
+/* Mobile Menu Button */
+.mobile-menu-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 30px;
+    height: 20px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    z-index: 1002;
+    padding: 0;
+}
+
+.hamburger-line {
+    width: 100%;
+    height: 2px;
+    background-color: #f0f4f8;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
+
+/* Hamburger Animation */
+.mobile-menu-btn.active .hamburger-line:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 6px);
+}
+
+.mobile-menu-btn.active .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+
+.mobile-menu-btn.active .hamburger-line:nth-child(3) {
+    transform: rotate(-45deg) translate(5px, -6px);
+}
+
+/* Mobile Menu Overlay */
+.mobile-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background: #0d1b2a;
+    z-index: 1001;
+    padding: 100px 30px 40px;
+    transform: translateY(-100%);
+    transition: transform 0.4s cubic-bezier(0.77, 0, 0.175, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.mobile-menu.active {
+    transform: translateY(0);
+}
+
+.mobile-menu-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: center;
+    text-align: center;
+}
+
+.mobile-nav-link {
+    font-size: 1.5rem;
+    color: #f0f4f8;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.mobile-nav-link:hover {
+    color: #FF8C42;
+}
+
+.mobile-divider {
+    width: 100%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 10px 0;
+}
+
+.mobile-user-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.mobile-user-info .user-email {
+    font-size: 0.9rem;
+    color: #b0c4de;
+}
+
+.mobile-nav-btn {
+    font-size: 1rem;
+    padding: 12px 24px;
+    width: 100%;
+    max-width: 250px;
+    border-radius: 12px;
+}
+
+.mobile-cta {
+    background: #FF8C42;
+    color: #0d1b2a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 32px;
+    border-radius: 100px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    text-decoration: none;
+    width: 100%;
+    max-width: 300px;
+    margin-top: 20px;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 1024px) {
+    .flyt-nav {
+        padding: 16px 20px;
+    }
+
+    /* Enforce solid header on mobile for consistency */
+    .flyt-nav.transparent {
+        background: rgba(27, 38, 59, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 16px 20px;
+    }
+
+    .flyt-nav .user-name {
+        display: none;
+    }
+
+    .flyt-nav .nav-logo img {
+        height: 28px;
+    }
+
+    /* Reset logo size override on mobile */
+    .flyt-nav.transparent .nav-logo img {
+        height: 28px;
+    }
+
+    .desktop-only {
+        display: none !important;
+    }
+
+    .mobile-menu-btn {
+        display: flex;
+    }
+}
+
+/* Ensure body has padding for fixed nav */
+body.has-flyt-nav {
+    padding-top: 72px;
+}
+
+/* Disable padding for transparent header pages */
+body.has-flyt-nav.transparent-header {
+    padding-top: 0;
+}
+
+/* Prevent scroll when menu is open */
+body.menu-open {
+    overflow: hidden;
+}

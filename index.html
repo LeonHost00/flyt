@@ -280,7 +280,7 @@
             justify-content: center;
             pointer-events: none;
             z-index: 0;
-            opacity: 0.08;
+            opacity: 0.7;
             width: 100%;
             text-align: center;
         }
@@ -289,14 +289,10 @@
             width: 120px;
             height: auto;
             margin-bottom: 10px;
-            filter: brightness(0) invert(1);
+            filter: brightness(0.8);
         }
 
-        .chat-background .bg-name {
-            width: 180px;
-            height: auto;
-            filter: brightness(0) invert(1);
-        }
+
 
         .chat-header {
             display: flex;
@@ -1136,7 +1132,6 @@
         <section class="chat-section">
             <div class="chat-background">
                 <img src="assets/logo.svg" class="bg-logo" alt="">
-                <img src="assets/name.svg" class="bg-name" alt="">
             </div>
             <!-- Drop Overlay for Drag and Drop -->
             <div class="drop-overlay" id="drop-overlay">
@@ -1165,11 +1160,7 @@
             <span id="user-email" style="display: none;">Laddar...</span>
 
             <div class="chat-messages" id="chat-messages">
-                <div class="chat-empty">
-                    <p>Starta en konversation!</p>
-                    <p style="font-size: 0.8rem; margin-top: 8px;">Ställ frågor, få hjälp med uppgifter eller ta en
-                        skärmbild!</p>
-                </div>
+                <div class="chat-empty"></div>
             </div>
             <div class="chat-input-container">
                 <div class="chat-input-wrapper">

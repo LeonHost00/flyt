@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, desktopCapturer, globalShortcut, Menu, Tray, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, desktopCapturer, globalShortcut, Menu, Tray, nativeImage, clipboard, Notification } = require('electron');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
@@ -15,6 +15,60 @@ autoUpdater.logger = require('console');
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// Check if running in development
+const isDev = !app.isPackaged;
+
+/**
+ * Initialize auto-update loop and listeners
+ */
+function initAutoUpdate() {
+  if (isDev) return;
+
+  console.log('Initializing auto-update system...');
+
+  // Auto-updater events
+  autoUpdater.on('update-available', (info) => {
+    console.log(`Update available: version ${info.version}`);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('No updates available');
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Auto-updater error:', err);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`Update downloaded: version ${info.version}`);
+
+    // Notify user that the app will restart for update
+    const notification = new Notification({
+      title: 'Flyt Uppdatering',
+      body: `Version ${info.version} har laddats ner och kommer att installeras nu.`,
+      icon: path.join(__dirname, 'assets', 'icon.png')
+    });
+
+    notification.show();
+
+    // Small delay to allow user to see notification before restart
+    setTimeout(() => {
+      console.log('Quitting and installing update...');
+      isQuitting = true;
+      autoUpdater.quitAndInstall(false, true);
+    }, 5000);
+  });
+
+  // Initial check on startup
+  autoUpdater.checkForUpdatesAndNotify();
+
+  // Check periodically every 4 hours
+  setInterval(() => {
+    console.log('Checking for updates (periodic)...');
+    autoUpdater.checkForUpdatesAndNotify();
+  }, 4 * 60 * 60 * 1000);
+}
+
 // Generate a machine-specific encryption key
 function getMachineEncryptionKey() {
   // Combine machine-unique identifiers
@@ -26,10 +80,10 @@ function getMachineEncryptionKey() {
   // Get primary network interface MAC address for additional uniqueness
   const networkInterfaces = os.networkInterfaces();
   let macAddress = 'unknown';
-  
+
   // Sort interface names to ensure deterministic selection across reboots
   const interfaceNames = Object.keys(networkInterfaces).sort();
-  
+
   for (const interfaceName of interfaceNames) {
     const iface = networkInterfaces[interfaceName];
     for (const entry of iface) {
@@ -63,18 +117,18 @@ const AGENT_CONFIG = {
   // Use compact tool documentation (80% smaller, ~500 tokens vs ~2500)
   // Set to false if the model has trouble understanding tool format
   useCompactDocs: true,
-  
+
   // Conversation windowing settings
   maxConversationMessages: 20,     // Keep last N messages (excluding system)
   summarizeAfter: 10,              // Summarize after this many tool iterations
   maxToolResultSize: 2000,         // Truncate tool results to this size
   maxErrorResultSize: 500,         // Truncate error outputs to this size
-  
+
   // System context settings
   includeSystemContext: true,      // Include system info in first message
   refreshSystemContextEvery: 5,    // Refresh system context every N iterations (0 = never)
   minimalSystemContext: true,      // Use minimal system context (no processes, windows)
-  
+
   // Native function calling (more efficient for supported models)
   useNativeFunctionCalling: false, // Set to true to use OpenRouter's native tools API
   nativeFunctionCallingModels: [   // Models that support native function calling well
@@ -110,6 +164,7 @@ const autoLauncher = new AutoLaunch({
 // Snipping tool state
 let snippingWindow = null;
 let capturedScreenshots = [];
+let isSnippingToolOpening = false; // Flag to prevent race conditions with rapid shortcut presses
 
 // Supabase configuration
 const SUPABASE_URL = 'https://cddircpnawvpryttmpel.supabase.co';
@@ -162,14 +217,14 @@ let authWindow = null;
 let currentUser = null;
 let isQuitting = false; // Track if we're actually quitting vs hiding to tray
 
-  // Create system tray icon
-  function createTray() {
+// Create system tray icon
+function createTray() {
   if (tray) return; // Already created
 
   // Load the icon from the assets folder
   const iconPath = path.join(__dirname, 'assets', 'icon.png');
   let trayIcon;
-  
+
   try {
     trayIcon = nativeImage.createFromPath(iconPath);
     // Resize for tray if needed (usually 16x16 or 32x32 depending on OS)
@@ -294,6 +349,20 @@ function toggleAppVisibility() {
 
 // Open snipping tool via global shortcut
 async function openSnippingTool() {
+  // Prevent opening snipping tool if already active or currently opening (race condition guard)
+  if (snippingWindow && !snippingWindow.isDestroyed()) {
+    console.log('Snipping tool already active, ignoring shortcut');
+    return;
+  }
+  
+  if (isSnippingToolOpening) {
+    console.log('Snipping tool already opening, ignoring rapid shortcut');
+    return;
+  }
+  
+  // Set flag immediately to prevent race conditions
+  isSnippingToolOpening = true;
+
   try {
     const displays = screen.getAllDisplays();
 
@@ -361,6 +430,7 @@ async function openSnippingTool() {
 
     snippingWindow.on('closed', () => {
       snippingWindow = null;
+      isSnippingToolOpening = false; // Reset flag when window closes
       if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
@@ -383,6 +453,7 @@ async function openSnippingTool() {
     console.log('Snipping tool opened via shortcut');
   } catch (error) {
     console.error('Snipping tool shortcut error:', error);
+    isSnippingToolOpening = false; // Reset flag on error
     if (mainWindow) {
       mainWindow.show();
     }
@@ -710,31 +781,31 @@ async function initializeSession() {
 // Set up auth state change listener to keep store in sync
 function setupAuthListener() {
   console.log('Setting up Supabase auth listener...');
-  
+
   supabase.auth.onAuthStateChange(async (event, session) => {
     console.log(`Auth state change: ${event}`);
-    
+
     if (session) {
       currentUser = session.user;
       storeTokens(session.access_token, session.refresh_token);
-      
+
       // Notify any open windows about the session update
       const targetWindow = mainWindow || authWindow;
       if (targetWindow && !targetWindow.isDestroyed()) {
-        targetWindow.webContents.send('auth:status-changed', { 
-          loggedIn: true, 
-          user: session.user 
+        targetWindow.webContents.send('auth:status-changed', {
+          loggedIn: true,
+          user: session.user
         });
       }
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
       clearTokens();
-      
+
       const targetWindow = mainWindow || authWindow;
       if (targetWindow && !targetWindow.isDestroyed()) {
-        targetWindow.webContents.send('auth:status-changed', { 
-          loggedIn: false, 
-          user: null 
+        targetWindow.webContents.send('auth:status-changed', {
+          loggedIn: false,
+          user: null
         });
       }
     }
@@ -742,6 +813,13 @@ function setupAuthListener() {
 }
 
 function createAuthWindow() {
+  // Prevent duplicate windows
+  if (authWindow && !authWindow.isDestroyed()) {
+    console.log('Auth window already exists, focusing...');
+    authWindow.show();
+    authWindow.focus();
+    return;
+  }
   console.log('Creating auth window...');
 
   // Get screen dimensions
@@ -786,6 +864,13 @@ function createAuthWindow() {
 }
 
 function createMainWindow() {
+  // Prevent duplicate windows
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    console.log('Main window already exists, focusing...');
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
   console.log('Creating main window...');
 
   // Get screen dimensions for helper popup positioning
@@ -836,25 +921,10 @@ function createMainWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
-
-  // Check for updates
-  if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
-  }
 }
 
-// Check if running in development
-const isDev = !app.isPackaged;
-
 // Auto-updater events
-autoUpdater.on('update-available', () => {
-  console.log('Update available');
-});
-
-autoUpdater.on('update-downloaded', () => {
-  console.log('Update downloaded');
-  // Optional: Notify renderer to show a "Restart" button
-});
+// (Moved to initAutoUpdate)
 
 // IPC Handlers
 ipcMain.handle('auth:signup', async (event, { email, password }) => {
@@ -1059,9 +1129,18 @@ async function handleOAuthCallback(url) {
 }
 
 ipcMain.handle('auth:complete', async () => {
-  if (currentUser && authWindow) {
-    authWindow.close();
-    authWindow = null;
+  console.log('auth:complete called - currentUser:', !!currentUser, 'authWindow:', !!authWindow);
+
+  if (currentUser) {
+    // Destroy the auth window if it exists
+    if (authWindow && !authWindow.isDestroyed()) {
+      console.log('Destroying auth window...');
+      authWindow.destroy();
+      authWindow = null;
+    }
+
+    // Create the main window
+    console.log('Creating main window after auth...');
     createMainWindow();
     return { success: true };
   }
@@ -1238,28 +1317,28 @@ function applyConversationWindowing(messages, config = AGENT_CONFIG) {
   }
 
   const windowedMessages = [];
-  
+
   // Always keep the system message first
   const systemMessage = messages.find(m => m.role === 'system');
   if (systemMessage) {
     windowedMessages.push(systemMessage);
   }
-  
+
   // Get non-system messages
   const nonSystemMessages = messages.filter(m => m.role !== 'system');
-  
+
   // If we have too many messages, keep only the window
   if (nonSystemMessages.length > config.maxConversationMessages) {
     const droppedCount = nonSystemMessages.length - config.maxConversationMessages;
-    
+
     // Add a summary of dropped context (optional)
     if (droppedCount > 0) {
       // Count tool calls in dropped messages
       const droppedMessages = nonSystemMessages.slice(0, droppedCount);
-      const toolCallCount = droppedMessages.filter(m => 
+      const toolCallCount = droppedMessages.filter(m =>
         m.role === 'assistant' && m.content?.includes('tool_call')
       ).length;
-      
+
       if (toolCallCount > 0) {
         windowedMessages.push({
           role: 'system',
@@ -1267,14 +1346,14 @@ function applyConversationWindowing(messages, config = AGENT_CONFIG) {
         });
       }
     }
-    
+
     // Keep the last N messages
     const keptMessages = nonSystemMessages.slice(-config.maxConversationMessages);
     windowedMessages.push(...keptMessages);
   } else {
     windowedMessages.push(...nonSystemMessages);
   }
-  
+
   return windowedMessages;
 }
 
@@ -1352,7 +1431,7 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
       // Apply conversation windowing to reduce context size
       const windowedMessages = applyConversationWindowing(currentMessages);
       const estimatedTokens = estimateTokenCount(windowedMessages);
-      
+
       // Log message summary (use windowed messages)
       console.log(`Windowed from ${currentMessages.length} to ${windowedMessages.length} messages (~${estimatedTokens} tokens)`);
       windowedMessages.forEach((msg, i) => {
@@ -1371,7 +1450,7 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
         max_tokens: 4096, // Increased for complex tool responses
         temperature: 0.7
       };
-      
+
       // Add native function calling if enabled and supported
       if (useNativeTools) {
         requestBody.tools = registry.getSchemas();
@@ -1442,30 +1521,30 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
 
       // Check for native function calling response first
       const nativeToolCalls = data.choices?.[0]?.message?.tool_calls;
-      
+
       if (nativeToolCalls && nativeToolCalls.length > 0) {
         // Handle native function calling response
         const nativeCall = nativeToolCalls[0]; // Handle first tool call
         const toolName = nativeCall.function?.name;
         let toolParams = {};
-        
+
         try {
           toolParams = JSON.parse(nativeCall.function?.arguments || '{}');
         } catch (e) {
           console.warn('Failed to parse native tool arguments:', e.message);
         }
-        
+
         console.log('\n========== NATIVE TOOL CALL DETECTED ==========');
         console.log('Tool:', toolName);
         console.log('Parameters:', JSON.stringify(toolParams, null, 2));
         console.log('================================================\n');
-        
+
         if (!registry.has(toolName)) {
           console.warn(`Unknown tool requested: ${toolName}`);
-          currentMessages.push({ 
-            role: 'assistant', 
+          currentMessages.push({
+            role: 'assistant',
             content: assistantMessage || '',
-            tool_calls: nativeToolCalls 
+            tool_calls: nativeToolCalls
           });
           currentMessages.push({
             role: 'tool',
@@ -1474,13 +1553,13 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
           });
           continue;
         }
-        
+
         // Execute the tool
         const toolResult = await registry.execute(toolName, toolParams, {
           user: currentUser,
           cwd: os.homedir()
         });
-        
+
         allToolExecutions.push({
           tool: toolName,
           params: toolParams,
@@ -1488,21 +1567,21 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
           success: toolResult.success,
           error: toolResult.error
         });
-        
+
         // Add assistant message with tool call
-        currentMessages.push({ 
-          role: 'assistant', 
+        currentMessages.push({
+          role: 'assistant',
           content: assistantMessage || '',
-          tool_calls: nativeToolCalls 
+          tool_calls: nativeToolCalls
         });
-        
+
         // Add tool result in native format
         currentMessages.push({
           role: 'tool',
           tool_call_id: nativeCall.id,
           content: toolResult.success ? toolResult.output : `Error: ${toolResult.error}`
         });
-        
+
         // Send progress update
         if (mainWindow && mainWindow.webContents) {
           mainWindow.webContents.send('llm:toolProgress', {
@@ -1514,7 +1593,7 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
             iteration
           });
         }
-        
+
         continue;
       }
 
@@ -1771,10 +1850,10 @@ async function getSystemPrompt() {
 ipcMain.handle('settings:getSystemPrompt', async () => {
   try {
     const basePrompt = await getSystemPrompt();
-    
+
     // Use compact docs by default (90% smaller, ~300 tokens vs ~3000)
-    const toolDocs = AGENT_CONFIG.useCompactDocs 
-      ? getCompactToolDocumentation() 
+    const toolDocs = AGENT_CONFIG.useCompactDocs
+      ? getCompactToolDocumentation()
       : getToolDocumentation();
 
     // Combine base prompt with tool documentation
@@ -1864,19 +1943,21 @@ async function getToolVersion(command, versionFlag = '--version') {
 async function detectProjectType(directory) {
   const fs = require('fs').promises;
   const indicators = [
-    { file: 'package.json', type: 'Node.js', extras: async (dir) => {
-      try {
-        const pkg = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf-8'));
-        const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-        if (deps['next']) return 'Next.js';
-        if (deps['react']) return 'React';
-        if (deps['vue']) return 'Vue.js';
-        if (deps['@angular/core']) return 'Angular';
-        if (deps['express']) return 'Express.js';
-        if (deps['electron']) return 'Electron';
-        return 'Node.js';
-      } catch { return 'Node.js'; }
-    }},
+    {
+      file: 'package.json', type: 'Node.js', extras: async (dir) => {
+        try {
+          const pkg = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf-8'));
+          const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+          if (deps['next']) return 'Next.js';
+          if (deps['react']) return 'React';
+          if (deps['vue']) return 'Vue.js';
+          if (deps['@angular/core']) return 'Angular';
+          if (deps['express']) return 'Express.js';
+          if (deps['electron']) return 'Electron';
+          return 'Node.js';
+        } catch { return 'Node.js'; }
+      }
+    },
     { file: 'requirements.txt', type: 'Python' },
     { file: 'pyproject.toml', type: 'Python' },
     { file: 'Pipfile', type: 'Python' },
@@ -2468,6 +2549,9 @@ app.whenReady().then(async () => {
   } else {
     console.log('Failed to register snipping shortcut');
   }
+
+  // Initialize auto-update system
+  initAutoUpdate();
 
   // Check if app was opened with OAuth callback URL (Windows)
   const oauthUrl = process.argv.find(arg => arg.startsWith(`${OAUTH_CALLBACK_PROTOCOL}://`));
