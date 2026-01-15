@@ -67,7 +67,7 @@ async function initDashboard() {
 
     if (error || !session) {
         console.error('No active session, redirecting to login...');
-        window.location.href = 'login.html';
+        window.location.href = 'login';
         return;
     }
 
@@ -562,7 +562,7 @@ async function initiateStripeCheckout() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    return_url: window.location.origin + '/dashboard.html?session_id={CHECKOUT_SESSION_ID}',
+                    return_url: window.location.origin + '/dashboard?session_id={CHECKOUT_SESSION_ID}',
                 }),
             }
         );
@@ -655,7 +655,7 @@ async function initiateStripeCheckout() {
             const { error } = await stripe.confirmPayment({
                 elements,
                 confirmParams: {
-                    return_url: window.location.origin + '/dashboard.html?payment=success',
+                    return_url: window.location.origin + '/dashboard?payment=success',
                 },
             });
 

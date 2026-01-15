@@ -11,10 +11,17 @@
   },
   "dependencies": {
     "@imagemagick/magick-wasm": "^0.0.37",
+    "@langchain/core": "^1.1.15",
+    "@langchain/langgraph": "^1.0.15",
+    "@langchain/openai": "^1.2.2",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@supabase/supabase-js": "^2.39.0",
     "auto-launch": "^5.0.6",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.7.3"
+    "electron-updater": "^6.7.3",
+    "turndown": "^7.2.2"
   },
   "devDependencies": {
     "electron": "^28.0.0",

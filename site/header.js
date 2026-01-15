@@ -37,16 +37,18 @@
         return `
         <nav class="flyt-nav" id="main-nav">
             <div class="nav-content">
-                <a href="index.html" class="nav-logo">
+                <a href="index" class="nav-logo">
                     <img src="${BRANDING_BASE}name.svg" alt="Flyt" height="20">
                 </a>
 
                 <!-- Desktop Menu -->
                 <div class="nav-links desktop-only">
-                    <a href="index.html#features" class="nav-link">Funktioner</a>
-                    <a href="index.html#tools" class="nav-link">Verktyg</a>
+                    <a href="index#features" class="nav-link">Funktioner</a>
+                    <a href="index#tools" class="nav-link">Verktyg</a>
+                    <a href="pricing" class="nav-link">Priser</a>
+                    <a href="business" class="nav-link">Företag</a>
                     ${isLoggedIn ? `
-                        <a href="dashboard.html" class="nav-link">Kontrollpanel</a>
+                        <a href="dashboard" class="nav-link">Kontrollpanel</a>
                         <div class="nav-user-section">
                             <div class="user-badge" title="${userEmail}">
                                 <span class="user-initial">${userInitial}</span>
@@ -60,7 +62,7 @@
                             </button>
                         </div>
                     ` : `
-                        <a href="login.html" class="nav-link">Logga in</a>
+                        <a href="login" class="nav-link">Logga in</a>
                     `}
                     <a href="${latestDownloadUrl}" class="nav-cta download-link-windows">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
@@ -81,12 +83,14 @@
             <!-- Mobile Menu Overlay -->
             <div class="mobile-menu" id="mobile-menu">
                 <div class="mobile-menu-content">
-                    <a href="index.html#features" class="mobile-nav-link">Funktioner</a>
-                    <a href="index.html#tools" class="mobile-nav-link">Verktyg</a>
+                    <a href="index#features" class="mobile-nav-link">Funktioner</a>
+                    <a href="index#tools" class="mobile-nav-link">Verktyg</a>
+                    <a href="pricing" class="mobile-nav-link">Priser</a>
+                    <a href="business" class="mobile-nav-link">Företag</a>
                     
                     ${isLoggedIn ? `
                         <div class="mobile-divider"></div>
-                        <a href="dashboard.html" class="mobile-nav-link">Kontrollpanel</a>
+                        <a href="dashboard" class="mobile-nav-link">Kontrollpanel</a>
                         <div class="mobile-user-info">
                             <span class="user-initial">${userInitial}</span>
                             <span class="user-email">${userEmail}</span>
@@ -96,7 +100,7 @@
                         </button>
                     ` : `
                         <div class="mobile-divider"></div>
-                        <a href="login.html" class="mobile-nav-link">Logga in</a>
+                        <a href="login" class="mobile-nav-link">Logga in</a>
                     `}
                     
                     <a href="${latestDownloadUrl}" class="mobile-cta download-link-windows">
@@ -171,7 +175,7 @@
         headerContainer.innerHTML = getHeaderHTML(isLoggedIn, userEmail);
 
         // Logic for landing page transparency
-        const isLandingPage = window.location.pathname.endsWith('index.html') || window.location.pathname === '/';
+        const isLandingPage = window.location.pathname.endsWith('index') || window.location.pathname.endsWith('index.html') || window.location.pathname === '/';
         const navEl = document.getElementById('main-nav');
 
         if (isLandingPage) {
@@ -233,7 +237,7 @@
     async function handleLogout() {
         try {
             await window._flytSupabaseClient.auth.signOut();
-            window.location.href = 'index.html';
+            window.location.href = 'index';
         } catch (error) {
             console.error('[FlytHeader] Logout error:', error);
             alert('Kunde inte logga ut. Försök igen.');

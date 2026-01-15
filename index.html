@@ -126,8 +126,8 @@
 
         /* User Avatar - Compact */
         .user-avatar {
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             background: var(--gradient-primary);
             border-radius: var(--radius-full);
             display: flex;
@@ -136,7 +136,94 @@
             font-weight: var(--font-weight-semibold);
             color: var(--text-primary);
             font-size: var(--font-size-xs);
-            cursor: default;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all var(--transition-fast);
+            -webkit-app-region: no-drag;
+        }
+
+        .user-avatar:hover {
+            border-color: rgba(var(--color-primary-light-rgb), 0.5);
+            transform: scale(1.05);
+        }
+
+        /* Profile Dropdown Menu */
+        .profile-menu-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            -webkit-app-region: no-drag;
+        }
+
+        .profile-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            min-width: 190px;
+            box-shadow: var(--shadow-xl);
+            display: none;
+            z-index: 1000;
+            padding: var(--spacing-xs) 0;
+            backdrop-filter: blur(16px);
+            animation: slideDown 0.2s ease-out;
+            -webkit-app-region: no-drag;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .profile-menu-container.show .profile-dropdown {
+            display: block;
+        }
+
+        .profile-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-md) var(--spacing-lg);
+            color: var(--text-secondary);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            text-decoration: none;
+            line-height: 1;
+        }
+
+        .profile-dropdown-item:hover {
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+        }
+
+        .profile-dropdown-item svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.8;
+        }
+
+        .profile-dropdown-divider {
+            height: 1px;
+            background: var(--border-subtle);
+            margin: var(--spacing-xs) 0;
+        }
+
+        .profile-dropdown-item.logout {
+            color: var(--color-error);
+        }
+
+        .profile-dropdown-item.logout:hover {
+            background: rgba(var(--color-error-rgb), 0.1);
         }
 
         .logout-btn {
@@ -302,7 +389,7 @@
             flex-shrink: 0;
             gap: var(--spacing-md);
             position: relative;
-            z-index: 1;
+            z-index: 10;
         }
 
         .chat-header-left {
@@ -378,6 +465,13 @@
             border-radius: var(--radius-2xl);
             line-height: var(--line-height-normal);
             font-size: var(--font-size-base);
+            /* Fix for overflow */
+            overflow-x: auto;
+            max-width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            min-width: 0;
+            /* Important for flex items to shrink */
         }
 
         .chat-message.user .message-content {
@@ -1151,9 +1245,29 @@
                     </div>
                 </div>
                 <div class="chat-header-right">
-                    <div class="user-avatar" id="user-avatar" title="Laddar...">?</div>
                     <button class="clear-chat-btn" id="clear-chat-btn">Rensa</button>
-                    <button class="logout-btn" id="logout-btn">↪</button>
+                    <div class="profile-menu-container" id="profile-menu-container">
+                        <div class="user-avatar" id="user-avatar" title="Visa profilalternativ">?</div>
+                        <div class="profile-dropdown" id="profile-dropdown">
+                            <a href="#" class="profile-dropdown-item" id="account-settings-btn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Konto inställningar
+                            </a>
+                            <div class="profile-dropdown-divider"></div>
+                            <div class="profile-dropdown-item logout" id="logout-btn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                Logga ut
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- Hidden email for JS reference -->

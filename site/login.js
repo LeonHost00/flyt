@@ -72,7 +72,7 @@ loginForm.addEventListener('submit', async (e) => {
 
         showMessage('Inloggning lyckades! Omdirigerar...', 'success');
         setTimeout(() => {
-            window.location.href = 'dashboard.html';
+            window.location.href = 'dashboard';
         }, 1500);
     } catch (error) {
         showMessage(error.message || 'Ett fel uppstod vid inloggning.', 'error');
@@ -105,7 +105,7 @@ signupForm.addEventListener('submit', async (e) => {
         } else {
             showMessage('Konto skapat! Omdirigerar...', 'success');
             setTimeout(() => {
-                window.location.href = 'dashboard.html';
+                window.location.href = 'dashboard';
             }, 1500);
         }
     } catch (error) {
@@ -119,7 +119,9 @@ signupForm.addEventListener('submit', async (e) => {
 googleBtn.addEventListener('click', async () => {
     setLoading(googleBtn, true);
     try {
-        const redirectTo = window.location.origin + window.location.pathname.replace('login.html', 'dashboard.html');
+        const isLandingPage = window.location.pathname.endsWith('index') || window.location.pathname.endsWith('index.html') || window.location.pathname === '/';
+        const currentPath = window.location.pathname.replace(/\.html$/, ''); // Remove .html if present
+        const redirectTo = window.location.origin + currentPath.replace('login', 'dashboard');
         console.log('Redirecting to:', redirectTo);
 
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
@@ -142,7 +144,7 @@ async function checkSession() {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
-            window.location.href = 'dashboard.html';
+            window.location.href = 'dashboard';
         }
     } catch (err) {
         console.error('Error checking session:', err);

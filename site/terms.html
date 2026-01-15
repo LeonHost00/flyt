@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="sv">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://flytapp.se;">
+    <title>Användarvillkor - Flyt</title>
+    <meta name="description" content="Användarvillkor för Flyt. Regler och riktlinjer för användning av vår tjänst.">
+
+    <link rel="icon" type="image/svg+xml"
+        href="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <!-- Shared Styles -->
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="header.css">
+
+    <style>
+        .page-header {
+            padding: 120px 20px 60px;
+            text-align: center;
+            background: radial-gradient(circle at 50% 0%, rgba(58, 122, 104, 0.1) 0%, transparent 70%);
+        }
+
+        .page-title {
+            font-size: clamp(2.5rem, 5vw, 3.5rem);
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 30%, var(--color-accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .content-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px 100px;
+        }
+
+        .text-block {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 48px;
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin: 40px 0 20px;
+            color: var(--text-primary);
+        }
+
+        h2:first-child {
+            margin-top: 0;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+        }
+
+        ul {
+            margin-bottom: 24px;
+            padding-left: 24px;
+            color: var(--text-secondary);
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 768px) {
+            .text-block {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <script src="header.js?v=2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+
+    <header class="page-header">
+        <h1 class="page-title">Användarvillkor</h1>
+        <p style="color: var(--text-secondary); font-size: 1.2rem;">Gäller från: 15 Januari 2026</p>
+    </header>
+
+    <main class="content-wrapper">
+        <div class="text-block">
+            <h2>1. Godkännande av villkor</h2>
+            <p>Genom att ladda ner, installera eller använda Flyt ("Tjänsten") godkänner du att vara bunden av dessa
+                användarvillkor. Om du inte godkänner dessa villkor, vänligen använd inte Tjänsten.</p>
+
+            <h2>2. Licens och användning</h2>
+            <p>Vi ger dig en begränsad, icke-exklusiv, icke-överlåtbar licens att använda Tjänsten för personligt eller
+                internt affärsbruk, i enlighet med dessa villkor.</p>
+            <ul>
+                <li>Du får inte modifiera, bakåtkompilera eller försöka extrahera källkoden till Tjänsten.</li>
+                <li>Du får inte använda Tjänsten för olagliga aktiviteter.</li>
+                <li>Vi förbehåller oss rätten att avsluta din licens om du bryter mot dessa villkor.</li>
+            </ul>
+
+            <h2>3. Konton och säkerhet</h2>
+            <p>Du är ansvarig för att upprätthålla sekretessen för ditt konto och lösenord. Vi är inte ansvariga för
+                någon förlust eller skada som uppstår till följd av att du inte skyddar din inloggningsinformation.</p>
+
+            <h2>4. Betalningar och prenumerationer</h2>
+            <p>Vissa funktioner i Tjänsten kan kräva betalning. Alla avgifter är icke-återbetalningsbara om inte annat
+                anges i lag. Vi förbehåller oss rätten att ändra våra priser med varsel.</p>
+
+            <h2>5. Ansvarsbegränsning</h2>
+            <p>Tjänsten tillhandahålls "i befintligt skick". Vi garanterar inte att Tjänsten kommer att vara felfri
+                eller oavbruten. Under inga omständigheter ska vi hållas ansvariga för indirekta skador, förlust av data
+                eller inkomstbortfall.</p>
+
+            <h2>6. Ändringar i villkoren</h2>
+            <p>Vi kan uppdatera dessa villkor från tid till annan. Vi kommer att meddela dig om väsentliga ändringar
+                genom att publicera de nya villkoren på denna sida.</p>
+
+            <h2>7. Kontakt</h2>
+            <p>Har du frågor kring våra villkor? Kontakta oss på <a href="mailto:legal@flytapp.se"
+                    style="color: var(--color-accent);">legal@flytapp.se</a>.</p>
+        </div>
+    </main>
+
+    <!-- Shared Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <img src="https://cddircpnawvpryttmpel.supabase.co/storage/v1/object/public/Branding/logo.svg"
+                    alt="Flyt" class="footer-logo">
+                <p class="footer-text">© 2026 Flyt. Alla rättigheter förbehållna.</p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Appen</h4>
+                    <a href="https://flytapp.se/download/windows/" class="footer-link download-link-windows">Ladda
+                        ner</a>
+                    <a href="pricing" class="footer-link">Priser</a>
+                    <a href="business" class="footer-link">För företag</a>
+                </div>
+                <div class="footer-column">
+                    <h4>Juridik</h4>
+                    <a href="privacy-policy" class="footer-link">Integritet</a>
+                    <a href="terms" class="footer-link" style="color: var(--color-accent);">Villkor</a>
+                    <a href="mailto:support@flytapp.se" class="footer-link">Kontakt</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+
+</html>

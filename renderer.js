@@ -15,6 +15,11 @@ const userAvatar = document.getElementById('user-avatar');
 const userEmail = document.getElementById('user-email');
 const logoutBtn = document.getElementById('logout-btn');
 
+// Profile Menu Elements
+const profileMenuContainer = document.getElementById('profile-menu-container');
+const profileDropdown = document.getElementById('profile-dropdown');
+const accountSettingsBtn = document.getElementById('account-settings-btn');
+
 // Token Elements
 const tokenBalance = document.getElementById('token-balance');
 const tokenCount = document.getElementById('token-count');
@@ -159,17 +164,44 @@ window.tokenAPI.onUpdated((data) => {
 
 
 // Logout handler
-logoutBtn.addEventListener('click', async () => {
-    logoutBtn.disabled = true;
-    logoutBtn.textContent = 'Loggar ut...';
+logoutBtn.addEventListener('click', async (e) => {
+    e.stopPropagation(); // Prevent dropdown from closing if it matters
+
+    // Visual feedback
+    const originalText = logoutBtn.innerHTML;
+    logoutBtn.style.pointerEvents = 'none';
+    logoutBtn.style.opacity = '0.5';
+    logoutBtn.innerHTML = '<span>⏳</span> Loggar ut...';
 
     try {
         await window.authAPI.logoutAndShowAuth();
     } catch (error) {
         console.error('Logout failed:', error);
-        logoutBtn.disabled = false;
-        logoutBtn.textContent = 'Logga ut';
+        logoutBtn.style.pointerEvents = 'auto';
+        logoutBtn.style.opacity = '1';
+        logoutBtn.innerHTML = originalText;
     }
+});
+
+// Toggle profile dropdown
+userAvatar.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profileMenuContainer.classList.toggle('show');
+});
+
+// Close dropdown when clicking outside
+window.addEventListener('click', (e) => {
+    if (profileMenuContainer && profileMenuContainer.classList.contains('show') && !profileMenuContainer.contains(e.target)) {
+        profileMenuContainer.classList.remove('show');
+    }
+});
+
+// Account settings link handler
+accountSettingsBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.shellAPI.openExternal('https://flytapp.se/dashboard');
+    profileMenuContainer.classList.remove('show');
 });
 
 // Fetch system prompt from Supabase

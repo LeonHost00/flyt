@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, desktopCapturer, globalShortcut, Menu, Tray, nativeImage, clipboard, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, desktopCapturer, globalShortcut, Menu, Tray, nativeImage, clipboard, Notification, safeStorage } = require('electron');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
@@ -69,87 +69,11 @@ function initAutoUpdate() {
   }, 4 * 60 * 60 * 1000);
 }
 
-// Generate a machine-specific encryption key
-function getMachineEncryptionKey() {
-  // Combine machine-unique identifiers
-  const hostname = os.hostname();
-  const username = os.userInfo().username;
-  const platform = os.platform();
-  const cpuModel = os.cpus()[0]?.model || 'unknown';
-
-  // Get primary network interface MAC address for additional uniqueness
-  const networkInterfaces = os.networkInterfaces();
-  let macAddress = 'unknown';
-
-  // Sort interface names to ensure deterministic selection across reboots
-  const interfaceNames = Object.keys(networkInterfaces).sort();
-
-  for (const interfaceName of interfaceNames) {
-    const iface = networkInterfaces[interfaceName];
-    for (const entry of iface) {
-      if (!entry.internal && entry.mac && entry.mac !== '00:00:00:00:00:00') {
-        macAddress = entry.mac;
-        break;
-      }
-    }
-    if (macAddress !== 'unknown') break;
-  }
-
-  // Create a deterministic hash from machine identifiers
-  const machineId = `${hostname}:${username}:${platform}:${cpuModel}:${macAddress}`;
-  const hash = crypto.createHash('sha256').update(machineId).digest('hex');
-
-  return hash;
-}
-
-// Import the modular tool system
+// Import the modular tool system (LangGraph-based)
 const {
-  initializeTools,
-  registry,
-  parseToolCall,
-  formatToolResult,
-  getToolDocumentation,
-  getCompactToolDocumentation
+  runAgent,
+  getToolDocumentation
 } = require('./tools');
-
-// ============= AGENT LOOP OPTIMIZATION SETTINGS =============
-const AGENT_CONFIG = {
-  // Use compact tool documentation (80% smaller, ~500 tokens vs ~2500)
-  // Set to false if the model has trouble understanding tool format
-  useCompactDocs: true,
-
-  // Conversation windowing settings
-  maxConversationMessages: 20,     // Keep last N messages (excluding system)
-  summarizeAfter: 10,              // Summarize after this many tool iterations
-  maxToolResultSize: 2000,         // Truncate tool results to this size
-  maxErrorResultSize: 500,         // Truncate error outputs to this size
-
-  // System context settings
-  includeSystemContext: true,      // Include system info in first message
-  refreshSystemContextEvery: 5,    // Refresh system context every N iterations (0 = never)
-  minimalSystemContext: true,      // Use minimal system context (no processes, windows)
-
-  // Native function calling (more efficient for supported models)
-  useNativeFunctionCalling: false, // Set to true to use OpenRouter's native tools API
-  nativeFunctionCallingModels: [   // Models that support native function calling well
-    'anthropic/claude-3',
-    'anthropic/claude-3.5',
-    'openai/gpt-4',
-    'openai/gpt-4o',
-    'google/gemini-pro',
-    'google/gemini-1.5',
-  ],
-};
-
-/**
- * Check if a model supports native function calling
- * @param {string} model - Model identifier
- * @returns {boolean}
- */
-function supportsNativeFunctionCalling(model) {
-  if (!model) return false;
-  return AGENT_CONFIG.nativeFunctionCallingModels.some(m => model.toLowerCase().includes(m.toLowerCase()));
-}
 
 // Tray instance
 let tray = null;
@@ -174,38 +98,32 @@ const SUPABASE_KEY = 'sb_publishable_lDoWq98zufz9gRxUCSl-3A_NXIWcpyJ';
 const OAUTH_CALLBACK_PROTOCOL = 'flyt';
 const OAUTH_REDIRECT_URL = `${OAUTH_CALLBACK_PROTOCOL}://auth-callback`;
 
-// Encrypted store for session data (machine-specific encryption)
-// Handle case where encryption key changed and old store can't be decrypted
-function createStore() {
-  const encryptionKey = getMachineEncryptionKey();
-  const storeName = 'auth-store';
-
-  try {
-    const newStore = new Store({
-      encryptionKey,
-      name: storeName
-    });
-    // Test that we can read the store (triggers decryption)
-    newStore.get('__test__');
-    return newStore;
-  } catch (error) {
-    console.log('Existing store encrypted with different key, clearing...');
-    // Delete the old store file and create fresh
-    const fs = require('fs');
-    const storePath = path.join(app.getPath('userData'), `${storeName}.json`);
+// Safe Storage Helper
+function encryptData(data) {
+  if (safeStorage.isEncryptionAvailable()) {
     try {
-      if (fs.existsSync(storePath)) {
-        fs.unlinkSync(storePath);
-        console.log('Old store file deleted');
-      }
-    } catch (deleteError) {
-      console.error('Error deleting old store:', deleteError);
+      return safeStorage.encryptString(data).toString('hex');
+    } catch (e) {
+      console.error('Encryption failed:', e);
+      return null;
     }
-    // Create a fresh store
-    return new Store({
-      encryptionKey,
-      name: storeName
-    });
+  } else {
+    console.warn('safeStorage is not available on this system');
+    return null;
+  }
+}
+
+function decryptData(encryptedData) {
+  if (safeStorage.isEncryptionAvailable()) {
+    try {
+      return safeStorage.decryptString(Buffer.from(encryptedData, 'hex'));
+    } catch (e) {
+      console.error('Decryption failed:', e);
+      return null;
+    }
+  } else {
+    console.error('safeStorage is not available to decrypt data');
+    return null;
   }
 }
 
@@ -354,12 +272,12 @@ async function openSnippingTool() {
     console.log('Snipping tool already active, ignoring shortcut');
     return;
   }
-  
+
   if (isSnippingToolOpening) {
     console.log('Snipping tool already opening, ignoring rapid shortcut');
     return;
   }
-  
+
   // Set flag immediately to prevent race conditions
   isSnippingToolOpening = true;
 
@@ -466,12 +384,22 @@ const TOKENS_PER_DOLLAR = 10000; // 10,000 tokens = $1 USD
 // Store tokens in encrypted store
 function storeTokens(accessToken, refreshToken) {
   try {
-    store.set('auth', {
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      stored_at: Date.now()
-    });
-    console.log('Tokens stored');
+    const encryptedAccess = encryptData(accessToken);
+    const encryptedRefresh = encryptData(refreshToken);
+
+    if (encryptedAccess && encryptedRefresh) {
+      store.set('auth_secure', {
+        access_token: encryptedAccess,
+        refresh_token: encryptedRefresh,
+        stored_at: Date.now()
+      });
+      // Clear old legacy auth if it exists
+      if (store.has('auth')) store.delete('auth');
+
+      console.log('Tokens securely stored using safeStorage');
+    } else {
+      console.error('Failed to encrypt tokens, session will not be persisted');
+    }
   } catch (error) {
     console.error('Error storing tokens:', error);
   }
@@ -480,7 +408,23 @@ function storeTokens(accessToken, refreshToken) {
 // Get tokens from encrypted store
 function getTokens() {
   try {
-    return store.get('auth');
+    // Try new secure storage first
+    if (store.has('auth_secure')) {
+      const data = store.get('auth_secure');
+      return {
+        access_token: decryptData(data.access_token),
+        refresh_token: decryptData(data.refresh_token)
+      };
+    }
+
+    // Fallback to old storage (will fail decryption if key changed, but good to check)
+    if (store.has('auth')) {
+      console.log('Migrating legacy auth token...');
+      const legacyAuth = store.get('auth');
+      return legacyAuth; // This might be raw or old-encrypted, but we rely on Supabase to validate
+    }
+
+    return null;
   } catch (error) {
     console.error('Error getting tokens:', error);
     return null;
@@ -491,6 +435,7 @@ function getTokens() {
 function clearTokens() {
   try {
     store.delete('auth');
+    store.delete('auth_secure');
     console.log('Tokens cleared');
   } catch (error) {
     console.error('Error clearing tokens:', error);
@@ -878,8 +823,8 @@ function createMainWindow() {
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
   const { x: workAreaX, y: workAreaY } = primaryDisplay.workArea;
 
-  // Helper popup dimensions - narrow, almost full height, right-aligned
-  const windowWidth = 470;
+  // Helper popup dimensions - 38% width, almost full height, right-aligned
+  const windowWidth = Math.round(screenWidth * 0.38);
   const windowHeight = screenHeight - 40; // Leave some margin
   const windowX = workAreaX + screenWidth - windowWidth - 10; // 10px from right edge
   const windowY = workAreaY + 20; // 20px from top
@@ -891,7 +836,6 @@ function createMainWindow() {
     y: windowY,
     minWidth: 360,
     minHeight: 400,
-    maxWidth: 600,
     show: true,
     frame: false, // Frameless window - no Windows title bar
     transparent: false,
@@ -1250,6 +1194,16 @@ ipcMain.handle('window:getAlwaysOnTop', async () => {
   return { success: false, alwaysOnTop: false };
 });
 
+// Open external URL in browser
+ipcMain.handle('shell:openExternal', async (event, url) => {
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // ===== TOKEN IPC HANDLERS =====
 
 // Get current user's token balance
@@ -1379,8 +1333,8 @@ function estimateTokenCount(messages) {
   return Math.ceil(totalChars / 4);
 }
 
-// LLM Chat handler using OpenRouter API (with agent loop for tool calls)
-// Uses the modular tool system from /tools directory
+// LLM Chat handler using LangGraph Agent
+// Uses the new MCP/LangGraph tool system
 ipcMain.handle('llm:chat', async (event, { messages }) => {
   try {
     // Ensure user is authenticated before allowing LLM access
@@ -1413,302 +1367,68 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
       };
     }
 
-    const MAX_TOOL_ITERATIONS = 15; // Allow more iterations for complex multi-step tasks
-    let currentMessages = [...messages];
-    let iteration = 0;
-    let allToolExecutions = []; // Track all tool executions for this request
-    let totalCost = 0; // Track total cost across all iterations
+    console.log('\n========== LANGGRAPH AGENT START ==========');
+    console.log('Model:', model);
+    console.log('Messages count:', messages.length);
 
-    while (iteration < MAX_TOOL_ITERATIONS) {
-      iteration++;
-
-      // Log the request
-      console.log('\n========== LLM REQUEST (Iteration ' + iteration + ') ==========');
-      console.log('Model:', model);
-      console.log('Messages count:', currentMessages.length);
-      console.log('Available tools:', registry.getToolNames().join(', '));
-
-      // Apply conversation windowing to reduce context size
-      const windowedMessages = applyConversationWindowing(currentMessages);
-      const estimatedTokens = estimateTokenCount(windowedMessages);
-
-      // Log message summary (use windowed messages)
-      console.log(`Windowed from ${currentMessages.length} to ${windowedMessages.length} messages (~${estimatedTokens} tokens)`);
-      windowedMessages.forEach((msg, i) => {
-        console.log(`\n--- Message ${i + 1} (${msg.role}) ---`);
-        const content = typeof msg.content === 'string' ? msg.content : '[multipart]';
-        // Truncate log output for readability
-        console.log(content.length > 500 ? content.substring(0, 500) + '...[truncated]' : content);
-      });
-      console.log('==================================\n');
-
-      // Build request body (optionally with native function calling)
-      const useNativeTools = AGENT_CONFIG.useNativeFunctionCalling && supportsNativeFunctionCalling(model);
-      const requestBody = {
-        model: model,
-        messages: windowedMessages, // Use windowed messages to reduce context size
-        max_tokens: 4096, // Increased for complex tool responses
-        temperature: 0.7
-      };
-
-      // Add native function calling if enabled and supported
-      if (useNativeTools) {
-        requestBody.tools = registry.getSchemas();
-        requestBody.tool_choice = 'auto';
-        console.log('Using native function calling with', requestBody.tools.length, 'tools');
-      }
-
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://flyt-app.local',
-          'X-Title': 'Flyt'
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('LLM API Error:', errorData);
-        return {
-          success: false,
-          error: errorData.error?.message || `API request failed with status ${response.status}`
-        };
-      }
-
-      const data = await response.json();
-      const assistantMessage = data.choices?.[0]?.message?.content;
-
-      // Log the full response JSON for debugging
-      console.log('\n========== LLM RAW RESPONSE (Iteration ' + iteration + ') ==========');
-      console.log(JSON.stringify(data, null, 2));
-      console.log('===================================\n');
-
-      // Log the response
-      console.log('\n========== LLM RESPONSE (Iteration ' + iteration + ') ==========');
-      console.log('Model used:', data.model);
-      console.log('Usage:', JSON.stringify(data.usage));
-      console.log('\n--- Assistant Response ---');
-      console.log(assistantMessage || '[No response]');
-      console.log('===================================\n');
-
-      // Track cost from this iteration
-      let iterationCost = 0;
-      let costSource = 'none';
-
-      if (data.usage?.total_cost) {
-        iterationCost = data.usage.total_cost;
-        costSource = 'response';
-      } else if (data.id) {
-        const fetchedCost = await getOpenRouterGenerationCost(data.id);
-        if (fetchedCost !== null) {
-          iterationCost = fetchedCost;
-          costSource = 'api';
-        } else {
-          const promptTokens = data.usage?.prompt_tokens || 0;
-          const completionTokens = data.usage?.completion_tokens || 0;
-          const modelPricing = getModelPricing(model);
-          iterationCost = (promptTokens * modelPricing.input / 1000000) +
-            (completionTokens * modelPricing.output / 1000000);
-          costSource = 'estimate';
-        }
-      }
-
-      totalCost += iterationCost;
-      console.log(`Iteration ${iteration} cost: $${iterationCost.toFixed(6)} (${costSource}), Total: $${totalCost.toFixed(6)}`);
-
-      // Check for native function calling response first
-      const nativeToolCalls = data.choices?.[0]?.message?.tool_calls;
-
-      if (nativeToolCalls && nativeToolCalls.length > 0) {
-        // Handle native function calling response
-        const nativeCall = nativeToolCalls[0]; // Handle first tool call
-        const toolName = nativeCall.function?.name;
-        let toolParams = {};
-
-        try {
-          toolParams = JSON.parse(nativeCall.function?.arguments || '{}');
-        } catch (e) {
-          console.warn('Failed to parse native tool arguments:', e.message);
-        }
-
-        console.log('\n========== NATIVE TOOL CALL DETECTED ==========');
-        console.log('Tool:', toolName);
-        console.log('Parameters:', JSON.stringify(toolParams, null, 2));
-        console.log('================================================\n');
-
-        if (!registry.has(toolName)) {
-          console.warn(`Unknown tool requested: ${toolName}`);
-          currentMessages.push({
-            role: 'assistant',
-            content: assistantMessage || '',
-            tool_calls: nativeToolCalls
-          });
-          currentMessages.push({
-            role: 'tool',
-            tool_call_id: nativeCall.id,
-            content: `Error: Unknown tool "${toolName}". Available: ${registry.getToolNames().join(', ')}`
-          });
-          continue;
-        }
-
-        // Execute the tool
-        const toolResult = await registry.execute(toolName, toolParams, {
-          user: currentUser,
-          cwd: os.homedir()
-        });
-
-        allToolExecutions.push({
-          tool: toolName,
-          params: toolParams,
-          output: toolResult.output,
-          success: toolResult.success,
-          error: toolResult.error
-        });
-
-        // Add assistant message with tool call
-        currentMessages.push({
-          role: 'assistant',
-          content: assistantMessage || '',
-          tool_calls: nativeToolCalls
-        });
-
-        // Add tool result in native format
-        currentMessages.push({
-          role: 'tool',
-          tool_call_id: nativeCall.id,
-          content: toolResult.success ? toolResult.output : `Error: ${toolResult.error}`
-        });
-
-        // Send progress update
-        if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('llm:toolProgress', {
-            tool: toolName,
-            params: toolParams,
-            output: toolResult.output,
-            success: toolResult.success,
-            error: toolResult.error,
-            iteration
-          });
-        }
-
-        continue;
-      }
-
-      if (!assistantMessage) {
-        if (totalCost > 0) {
-          await deductTokens(currentUser.id, totalCost, model, 'AI inference (no response)');
-        }
-        return { success: false, error: 'Inget svar mottaget från AI.' };
-      }
-
-      // Parse tool call from text using the modular parser (fallback for non-native)
-      const toolCall = parseToolCall(assistantMessage);
-
-      if (toolCall && toolCall.tool) {
-        console.log('\n========== TOOL CALL DETECTED (text) ==========');
-        console.log('Tool:', toolCall.tool);
-        console.log('Parameters:', JSON.stringify(toolCall.params, null, 2));
-        console.log('================================================\n');
-
-        // Check if tool exists
-        if (!registry.has(toolCall.tool)) {
-          console.warn(`Unknown tool requested: ${toolCall.tool}`);
-          // Let the LLM know the tool doesn't exist with clear formatting
-          currentMessages.push({ role: 'assistant', content: assistantMessage });
-          currentMessages.push({
-            role: 'user',
-            content: `[Tool Result]\n[${toolCall.tool} ✗] (step ${iteration}/${MAX_TOOL_ITERATIONS}) Unknown tool. Available tools: ${registry.getToolNames().join(', ')}`
-          });
-          continue;
-        }
-
-        // Execute the tool using the registry
-        const toolResult = await registry.execute(toolCall.tool, toolCall.params, {
-          user: currentUser,
-          cwd: os.homedir()
-        });
-
-        // Track this tool execution
-        allToolExecutions.push({
-          tool: toolCall.tool,
-          params: toolCall.params,
-          output: toolResult.output,
-          success: toolResult.success,
-          error: toolResult.error
-        });
-
-        // Add the assistant's message to the conversation
-        currentMessages.push({ role: 'assistant', content: assistantMessage });
-
-        // Format and add the tool result with iteration context
-        const toolResultMessage = formatToolResult(toolCall.tool, toolResult, {
-          maxOutput: AGENT_CONFIG.maxToolResultSize,
-          maxError: AGENT_CONFIG.maxErrorResultSize,
-          iteration: iteration,
-          maxIterations: MAX_TOOL_ITERATIONS
-        });
-        // Use a clear "Tool Result" prefix so LLM knows this is tool output, not user input
-        currentMessages.push({ role: 'user', content: `[Tool Result]\n${toolResultMessage}` });
-
+    // Run the LangGraph agent
+    const result = await runAgent({
+      messages,
+      apiKey,
+      model,
+      context: {
+        user: currentUser,
+        cwd: os.homedir(),
+        braveApiKey: await getBraveSearchApiKey()
+      },
+      onToolProgress: (progress) => {
         // Send progress update to renderer
         if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('llm:toolProgress', {
-            tool: toolCall.tool,
-            params: toolCall.params,
-            output: toolResult.output,
-            success: toolResult.success,
-            error: toolResult.error,
-            iteration
-          });
+          mainWindow.webContents.send('llm:toolProgress', progress);
         }
-
-        // Continue the loop to get the LLM's response to the tool output
-        continue;
       }
+    });
 
-      // No tool call, return the final response
-      let tokenResult = { tokensDeducted: 0, newBalance: tokenData.tokens };
-      if (totalCost > 0) {
-        tokenResult = await deductTokens(currentUser.id, totalCost, model, 'AI inference');
-      }
+    console.log('========== LANGGRAPH AGENT COMPLETE ==========');
+    console.log('Iterations:', result.iterations);
+    console.log('Tool executions:', result.toolExecutions?.length || 0);
 
-      // Notify renderer of token update
-      if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('tokens:updated', {
-          newBalance: tokenResult.newBalance,
-          tokensDeducted: tokenResult.tokensDeducted,
-          cost: totalCost,
-          costSource: costSource
-        });
-      }
-
-      return {
-        success: true,
-        message: assistantMessage,
-        model: data.model,
-        usage: data.usage,
-        toolExecutions: allToolExecutions.length > 0 ? allToolExecutions : undefined,
-        tokenUsage: {
-          cost: totalCost,
-          tokensDeducted: tokenResult.tokensDeducted,
-          newBalance: tokenResult.newBalance,
-          costSource: costSource
-        }
-      };
+    // Estimate cost (simplified - actual cost comes from OpenRouter)
+    let totalCost = 0;
+    if (result.usage) {
+      const promptTokens = result.usage.prompt_tokens || 0;
+      const completionTokens = result.usage.completion_tokens || 0;
+      const modelPricing = getModelPricing(model);
+      totalCost = (promptTokens * modelPricing.input / 1000000) +
+        (completionTokens * modelPricing.output / 1000000);
     }
 
-    // Max iterations reached
+    // Deduct tokens
+    let tokenResult = { tokensDeducted: 0, newBalance: tokenData.tokens };
     if (totalCost > 0) {
-      await deductTokens(currentUser.id, totalCost, model, 'AI inference (max iterations)');
+      tokenResult = await deductTokens(currentUser.id, totalCost, model, 'AI inference');
+    }
+
+    // Notify renderer of token update
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('tokens:updated', {
+        newBalance: tokenResult.newBalance,
+        tokensDeducted: tokenResult.tokensDeducted,
+        cost: totalCost
+      });
     }
 
     return {
-      success: false,
-      error: `Maximum tool iterations (${MAX_TOOL_ITERATIONS}) reached. The agent may be stuck in a loop.`,
-      toolExecutions: allToolExecutions
+      success: true,
+      message: result.message,
+      model: model,
+      usage: result.usage,
+      toolExecutions: result.toolExecutions?.length > 0 ? result.toolExecutions : undefined,
+      tokenUsage: {
+        cost: totalCost,
+        tokensDeducted: tokenResult.tokensDeducted,
+        newBalance: tokenResult.newBalance
+      }
     };
 
   } catch (error) {
@@ -1766,6 +1486,45 @@ async function getOpenRouterApiKey() {
   } catch (error) {
     console.error('Error in getOpenRouterApiKey:', error);
     return cachedApiKey || DEFAULT_API_KEY;
+  }
+}
+
+// Cache for the Brave Search API key (refreshed periodically)
+let cachedBraveApiKey = null;
+let braveApiKeyCacheTime = 0;
+const BRAVE_API_KEY_CACHE_TTL = 300000; // Cache for 5 minutes
+
+// Fetch Brave Search API key from Supabase app_settings
+async function getBraveSearchApiKey() {
+  try {
+    // Return cached key if still valid
+    const now = Date.now();
+    if (cachedBraveApiKey && (now - braveApiKeyCacheTime) < BRAVE_API_KEY_CACHE_TTL) {
+      return cachedBraveApiKey;
+    }
+
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'brave_search_api_key')
+      .single();
+
+    if (error) {
+      console.error('Error fetching Brave Search API key from Supabase:', error);
+      return cachedBraveApiKey;
+    }
+
+    if (data && data.value && data.value.key) {
+      cachedBraveApiKey = data.value.key;
+      braveApiKeyCacheTime = now;
+      console.log('Brave Search API key fetched from Supabase');
+      return cachedBraveApiKey;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in getBraveSearchApiKey:', error);
+    return cachedBraveApiKey;
   }
 }
 
@@ -1851,10 +1610,7 @@ ipcMain.handle('settings:getSystemPrompt', async () => {
   try {
     const basePrompt = await getSystemPrompt();
 
-    // Use compact docs by default (90% smaller, ~300 tokens vs ~3000)
-    const toolDocs = AGENT_CONFIG.useCompactDocs
-      ? getCompactToolDocumentation()
-      : getToolDocumentation();
+    const toolDocs = getToolDocumentation();
 
     // Combine base prompt with tool documentation
     const fullPrompt = `${basePrompt}\n\n${toolDocs}`;
@@ -1869,36 +1625,26 @@ ipcMain.handle('settings:getSystemPrompt', async () => {
 // IPC handler to get available tools (for UI display)
 ipcMain.handle('tools:getAvailable', async () => {
   try {
-    const tools = registry.getEnabled().map(tool => ({
-      name: tool.name,
-      displayName: tool.displayName,
-      description: tool.description,
-      category: tool.category,
-      requiresConfirmation: tool.requiresConfirmation
-    }));
+    const tools = [
+      {
+        name: 'run_command',
+        displayName: 'Run Command',
+        description: 'Execute a shell command (PowerShell on Windows, bash on Unix).',
+        category: 'shell',
+        requiresConfirmation: false
+      }
+    ];
 
-    const categories = registry.getCategories();
-
-    return {
-      success: true,
-      tools,
-      categories,
-      count: tools.length
-    };
+    return { success: true, tools, categories: ['shell'], count: 1 };
   } catch (error) {
-    console.error('Error getting tools:', error);
+    console.error('Error getting available tools:', error);
     return { success: false, error: error.message };
   }
 });
 
 // IPC handler to get tool execution history
 ipcMain.handle('tools:getHistory', async (event, { limit = 20 }) => {
-  try {
-    const history = registry.getHistory(limit);
-    return { success: true, history };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+  return { success: true, history: [] };
 });
 
 // Get available models (for admin reference, not exposed to users)
@@ -2494,20 +2240,33 @@ app.whenReady().then(async () => {
   console.log('=== App Starting ===');
 
   // Initialize the encrypted store (must be after app is ready)
-  store = createStore();
-  console.log('Encrypted store initialized with machine-specific key');
+  const fs = require('fs'); // Added for store cleanup
+
+  // Initialize the store
+  try {
+    store = new Store({ name: 'auth-store' });
+    // Test read to ensure validity (in case of old encrypted file)
+    store.get('__test__');
+  } catch (error) {
+    console.log('Could not load store (likely old encryption), resetting...');
+    const storePath = path.join(app.getPath('userData'), 'auth-store.json');
+    try {
+      if (fs.existsSync(storePath)) {
+        fs.unlinkSync(storePath);
+        console.log('Old store file deleted');
+      }
+    } catch (e) {
+      console.error('Error deleting old store:', e);
+    }
+    store = new Store({ name: 'auth-store' });
+  }
 
   // Set up auth listener to keep session in sync
   setupAuthListener();
 
-  // Initialize the modular tool system
-  console.log('Initializing tool system...');
-  initializeTools({
-    electron: {
-      clipboard: clipboard,
-      shell: shell
-    }
-  });
+  // Tool system now uses LangGraph (initialized on-demand)
+  console.log('Tool system ready (LangGraph-based)');
+
 
   // Remove the application menu (File, Edit, View, etc.)
   Menu.setApplicationMenu(null);

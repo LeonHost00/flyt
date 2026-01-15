@@ -1,321 +1,153 @@
-# Flyt Agent Tool System
+# Flyt Agent Tools
 
-Modular tool system for the Flyt AI assistant. Tools enable the AI to perform actions on the user's system.
-
----
-
-## Quick Start
-
-```javascript
-const { initializeTools, registry, executeTool } = require('./tools');
-
-// Initialize on app start
-initializeTools({ electron: { clipboard, shell } });
-
-// Execute a tool
-const result = await executeTool('run_command', { command: 'dir' });
-```
-
----
+This directory contains the AI agent's tool system built on **MCP (Model Context Protocol)** and **LangGraph.js**.
 
 ## Architecture
 
 ```
 tools/
-├── index.js       # Main entry, exports everything
-├── base.js        # BaseTool class and ToolResult
-├── registry.js    # ToolRegistry - manages all tools
-├── shell.js       # Shell/command tools
-├── filesystem.js  # File operations
-├── system.js      # System utilities (clipboard, URLs)
-├── image.js       # Image processing
-└── README.md      # This file
+├── index.js              # Main entry point
+├── registry/             # Modular tool definitions
+│   ├── index.js          # Dynamic tool loader
+│   ├── run_command.js    # Shell command execution
+│   ├── read_file.js      # Read file contents
+│   ├── write_file.js     # Write/create files
+│   ├── list_directory.js # List directory contents
+│   ├── search_files.js   # Search files by pattern
+│   ├── brave_search.js   # Web search via Brave API
+│   └── fetch_url.js      # Fetch URL content to Markdown
+├── mcp/
+│   ├── server.js         # MCP server (exposes tools via MCP protocol)
+│   └── client.js         # MCP client (connects to MCP servers)
+└── graph/
+    └── agent.js          # LangGraph StateGraph agent
 ```
 
----
+## Built-in Tools
 
-## Agent Loop Overview
+### File System Tools
 
-The Flyt agent uses an iterative tool-calling loop:
+#### `read_file`
+Read file contents with optional line range.
+- **Input**: `path` (string), `startLine` (number, optional), `endLine` (number, optional)
+- **Output**: File contents with line numbers
 
-```
-User Message
-    ↓
-Build Context (system prompt + tool docs + system info)
-    ↓
-Send to LLM (OpenRouter API)
-    ↓
-Parse Response
-    ├─► Tool call? → Execute → Format result → Loop back
-    └─► No tool? → Return final response
-```
+#### `write_file`
+Create or overwrite files.
+- **Input**: `path` (string), `content` (string), `createDirectories` (boolean, optional)
+- **Output**: Success confirmation with file size
 
-### Key Features
+#### `list_directory`
+List directory contents with metadata.
+- **Input**: `path` (string), `recursive` (boolean, optional), `maxDepth` (number, optional)
+- **Output**: Files and folders with types and sizes
 
-| Feature | Description |
-|---------|-------------|
-| **Enhanced Tool Docs** | Balanced format with parameter descriptions + examples |
-| **Iteration Context** | Results show "step 3/15" for progress awareness |
-| **Conversation Windowing** | Prevents unbounded context growth |
-| **Project Detection** | Auto-detects Node.js, Python, Rust, etc. |
-| **Line-Based Editing** | Insert/delete lines in addition to search/replace |
+#### `search_files`
+Search for files matching a glob pattern.
+- **Input**: `directory` (string), `pattern` (string, e.g. `*.js`), `maxResults` (number, optional)
+- **Output**: List of matching file paths
 
----
+### Web Tools
 
-## Configuration
+#### `brave_search`
+Search the web using Brave Search API.
+- **Input**: `query` (string), `count` (number, optional, default 5)
+- **Output**: Search results with titles, URLs, and snippets
+- **Requires**: `BRAVE_SEARCH_API_KEY` environment variable
 
-All settings in `main.js`:
-
-```javascript
-const AGENT_CONFIG = {
-  useCompactDocs: true,           // Enhanced tool documentation
-  maxConversationMessages: 20,    // Context window size
-  maxToolResultSize: 2000,        // Truncate outputs
-  maxErrorResultSize: 500,        // Truncate errors
-  minimalSystemContext: true,     // Lean system info
-  useNativeFunctionCalling: false // Native tools API (experimental)
-};
-```
-
----
-
-## Available Tools
-
-### Shell Tools
-
-| Tool | Description |
-|------|-------------|
-| `run_command` | Execute shell commands (PowerShell on Windows) |
-| `run_background` | Start long-running processes (servers, etc.) |
-| `kill_process` | Terminate process by PID or name |
-
-### Filesystem Tools
-
-| Tool | Description |
-|------|-------------|
-| `read_file` | Read file contents (supports line ranges) |
-| `write_file` | Create or overwrite files |
-| `edit_file` | Search/replace OR line-based editing |
-| `list_directory` | List files and folders |
-| `search_files` | Find files by name pattern or content |
-| `delete` | Delete files or directories |
+#### `fetch_url`
+Fetch a URL and convert HTML to Markdown.
+- **Input**: `url` (string), `timeout` (number, optional)
+- **Output**: Page content as readable Markdown
 
 ### System Tools
 
-| Tool | Description |
-|------|-------------|
-| `open_url` | Open URL in default browser |
-| `open_path` | Open file/folder in default app |
-| `clipboard_read` | Read clipboard text |
-| `clipboard_write` | Write text to clipboard |
-| `system_info` | Get OS, memory, CPU info |
-| `env_var` | Read environment variables |
-| `wait` | Pause for N seconds |
+#### `run_command`
+Executes shell commands on the host system.
+- **Input**: `command` (string), `cwd` (string, optional), `timeout` (number, optional)
+- **Behavior**: Uses PowerShell on Windows, bash on Unix
+- **Security**: Runs with the same permissions as the host application
 
-### Image Tools
+## Components
 
-| Tool | Description |
-|------|-------------|
-| `convert_image` | Convert between image formats |
+### Tool Registry (`registry/`)
+Modular tool system with dynamic loading:
+- Each tool is a self-contained module with `name`, `description`, `inputSchema`, and `execute`
+- Tools are auto-discovered from the `registry/` folder
+- Add new tools by creating a new `.js` file
 
----
+### MCP Server (`mcp/server.js`)
+Exposes registry tools via the MCP protocol:
+- Uses `@modelcontextprotocol/sdk` for protocol compliance
+- Can run as standalone stdio server
+- Handles `tools/list` and `tools/call` requests
 
-## Tool Details
+### MCP Client (`mcp/client.js`)
+Connects to MCP servers (local or remote):
+- `connectStdio()` - Connect via stdio transport
+- `connectLocalServer()` - Connect to internal tools server
+- `callTool()` - Execute tools on connected servers
+- Supports multiple concurrent server connections
 
-### edit_file
+### LangGraph Agent (`graph/agent.js`)
+Manages the agentic loop using a StateGraph:
+- `callModel` node - Invokes the LLM
+- `executeTools` node - Runs requested tools via registry
+- Conditional edges for loop control (max 15 iterations)
 
-Supports three operation modes:
+## Usage
 
-**1. Search/Replace** (find exact text and replace)
-```json
-{"tool": "edit_file", "path": "config.js", "search": "port: 3000", "replace": "port: 8080"}
+```javascript
+const { runAgent } = require('./tools');
+
+const result = await runAgent({
+  messages: [...], // Conversation history
+  apiKey: '...',   // OpenRouter API key
+  model: '...',    // Model identifier
+  context: { cwd: '/path' },
+  onToolProgress: (progress) => { /* handle updates */ }
+});
 ```
-
-**2. Insert After Line** (add new content)
-```json
-{"tool": "edit_file", "path": "app.js", "insert_after_line": 5, "new_text": "const debug = true;"}
-```
-
-**3. Delete Lines** (remove line range)
-```json
-{"tool": "edit_file", "path": "test.js", "delete_lines": "10-15"}
-```
-
-### search_files
-
-Automatically skips for performance:
-- Hidden files/dirs (`.git`, `.env`, etc.)
-- `node_modules`, `__pycache__`, `venv`, `dist`, `build`
-
-Use `include_hidden: true` to search hidden files.
-
----
 
 ## Adding New Tools
 
-### 1. Create Tool Class
+Create a new file in `registry/` (e.g., `my_tool.js`):
 
 ```javascript
-// tools/mytool.js
-const { BaseTool, ToolResult } = require('./base');
+const name = 'my_tool';
+const description = 'What this tool does';
 
-class MyTool extends BaseTool {
-  constructor() {
-    super({
-      name: 'my_tool',
-      displayName: 'My Tool',
-      description: 'What this tool does',
-      category: 'mycategory',
-      parameters: {
-        properties: {
-          param1: { type: 'string', description: 'First param' }
-        },
-        required: ['param1']
-      },
-      examples: [
-        { tool: 'my_tool', param1: 'value' }
-      ],
-      timeout: 30000
-    });
-  }
-
-  async execute(params, context = {}) {
-    try {
-      const result = doSomething(params.param1);
-      return ToolResult.success(`Done: ${result}`);
-    } catch (error) {
-      return ToolResult.failure(error.message);
-    }
-  }
-}
-
-module.exports = { MyTool };
-```
-
-### 2. Register in index.js
-
-```javascript
-const { MyTool } = require('./mytool');
-
-function initializeTools(options = {}) {
-  // ... existing registrations ...
-  registry.register(new MyTool());
-}
-```
-
-### 3. Update Renderer (optional)
-
-```javascript
-// renderer.js - TOOL_DISPLAY object
-const TOOL_DISPLAY = {
-  my_tool: { name: 'My Tool', verb: 'Processing' }
+const inputSchema = {
+    type: 'object',
+    properties: {
+        param1: { type: 'string', description: 'First parameter' }
+    },
+    required: ['param1']
 };
+
+async function execute(params, context) {
+    // Tool logic here
+    return { success: true, output: 'Result' };
+}
+
+module.exports = { name, description, inputSchema, execute };
 ```
 
----
+The tool will be automatically loaded on next startup.
 
-## System Prompt
-
-The system prompt (stored in Supabase) includes:
-
-1. **Core Principles** - Act don't suggest, read before write, handle errors
-2. **Operational Guidelines** - File operations, shell commands, multi-step strategy
-3. **Common Patterns** - Edit file flow, debug flow, install deps
-4. **Error Recovery** - How to handle common failures
-
-Tool documentation is automatically appended at runtime.
-
-### Key Guidelines for the LLM
-
-- Use **absolute paths** to avoid ambiguity
-- Always **read_file before edit_file**
-- Set appropriate **timeout** for slow operations
-- Provide **exact search text** including whitespace for edits
-
----
-
-## API Reference
-
-### Registry Methods
+## Connecting to External MCP Servers
 
 ```javascript
-registry.register(tool)              // Add a tool
-registry.get(name)                   // Get tool by name
-registry.has(name)                   // Check if exists
-registry.getAll()                    // All tools
-registry.getEnabled()                // Enabled tools only
-registry.getByCategory(category)     // Filter by category
-registry.execute(name, params, ctx)  // Execute tool
-registry.getSchemas()                // OpenAI function schemas
-registry.generateCompactDocumentation() // System prompt docs
-registry.getHistory(limit)           // Execution history
+const { MCPClient } = require('./tools');
+
+const client = new MCPClient();
+
+// Connect to an external MCP server
+await client.connectStdio('database', {
+    command: 'node',
+    args: ['path/to/database-mcp-server.js']
+});
+
+// Use tools from the connected server
+const result = await client.callTool('query_database', { sql: 'SELECT * FROM users' });
 ```
-
-### Helper Functions
-
-```javascript
-initializeTools(options)           // Initialize system
-executeTool(name, params, context) // Quick execution
-parseToolCall(message)             // Parse from LLM text
-formatToolResult(name, result, options) // Format for LLM
-getCompactToolDocumentation()      // Get tool docs
-getToolSchemas()                   // Native function schemas
-```
-
----
-
-## Troubleshooting
-
-### "Search text not found" in edit_file
-- Re-read the file to see exact content
-- Include more surrounding context in search
-- Check whitespace and indentation match exactly
-- Use line-based editing (`insert_after_line`, `delete_lines`) as alternative
-
-### Tool execution timeout
-- Increase `timeout` parameter (default: 30000ms)
-- For installs/builds, use 120000ms or more
-- For servers, use `run_background` instead
-
-### Context growing too large
-- Reduce `maxConversationMessages` in AGENT_CONFIG
-- Check console for "Windowed from X to Y messages"
-
-### Agent stuck in loop
-- Max iterations (15) will stop it automatically
-- Improve error messages help agent recover
-- Check if tool is returning actionable error info
-
----
-
-## Token Optimization
-
-| Optimization | Reduction |
-|--------------|-----------|
-| Enhanced tool docs (vs verbose) | ~70% |
-| Minimal system context | ~75% |
-| Compact tool results | ~70% |
-| Conversation windowing | Prevents unbounded growth |
-
-Typical costs:
-- Simple task (1-2 tools): ~800 tokens
-- Medium task (3-5 tools): ~2000 tokens
-- Complex task (10+ tools): ~4000 tokens
-
----
-
-## Changelog
-
-### v2.1 - Agent Improvements (January 2026)
-- **Enhanced system prompt** with operational guidance
-- **Improved tool docs** with parameter descriptions + examples
-- **Iteration context** in tool results (step N/15)
-- **Line-based editing** (insert_after_line, delete_lines)
-- **Project detection** (Node.js, Python, Rust, etc.)
-- **Better error messages** with hints for edit_file failures
-
-### v2.0 - Agent Loop Optimizations
-- Compact tool documentation
-- Conversation windowing
-- Minimal system context
-- Native function calling support

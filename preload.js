@@ -93,3 +93,8 @@ contextBridge.exposeInMainWorld('toolsAPI', {
   getAvailable: () => ipcRenderer.invoke('tools:getAvailable'),
   getHistory: (options = {}) => ipcRenderer.invoke('tools:getHistory', options)
 });
+
+// Shell API - exposed to renderer for opening external links
+contextBridge.exposeInMainWorld('shellAPI', {
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url)
+});
