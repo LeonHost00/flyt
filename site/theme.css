@@ -81,21 +81,21 @@ h4 {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 .container {
-    max-width: 1200px;
+    max-width: 75rem;
     margin: 0 auto;
 }
 
 .section-badge {
     display: inline-block;
-    padding: 6px 16px;
+    padding: 0.375rem 1rem;
     background: rgba(58, 122, 104, 0.15);
     color: var(--color-forest-light);
-    border-radius: 100px;
+    border-radius: 6.25rem;
     font-size: 0.85rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    margin-bottom: 16px;
+    margin-bottom: 1rem;
     border: 1px solid var(--border-accent);
 }
 
@@ -104,7 +104,7 @@ h4 {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 .footer {
-    padding: 60px 20px;
+    padding: 3.75rem 1.25rem;
     border-top: 1px solid var(--border-glass);
     background: var(--bg-deep);
     width: 100%;
@@ -112,26 +112,26 @@ h4 {
 
 /* Dashboard-specific footer spacing */
 .dashboard-main+.footer {
-    margin-top: 80px;
+    margin-top: 5rem;
 }
 
 .footer-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    max-width: 1200px;
+    max-width: 75rem;
     margin: 0 auto;
 }
 
 .footer-brand {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.75rem;
     align-items: flex-start;
 }
 
 .footer-logo {
-    height: 32px;
+    height: 2rem;
     opacity: 0.8;
 }
 
@@ -142,19 +142,19 @@ h4 {
 
 .footer-links {
     display: flex;
-    gap: 40px;
+    gap: 2.5rem;
 }
 
 .footer-column {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.75rem;
 }
 
 .footer-column h4 {
     font-size: 0.9rem;
     color: var(--text-primary);
-    margin-bottom: 8px;
+    margin-bottom: 0.5rem;
 }
 
 .footer-link {
@@ -168,10 +168,10 @@ h4 {
     color: var(--color-accent);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 48rem) {
     .footer-content {
         flex-direction: column;
-        gap: 40px;
+        gap: 2.5rem;
         text-align: center;
         align-items: center;
     }

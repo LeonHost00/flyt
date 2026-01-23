@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('authAPI', {
 // LLM API - exposed to renderer for AI chat
 // Note: Model is controlled server-side via Supabase app_settings
 contextBridge.exposeInMainWorld('llmAPI', {
-  chat: (messages) => ipcRenderer.invoke('llm:chat', { messages }),
+  chat: (options) => ipcRenderer.invoke('llm:chat', options),
   onToolProgress: (callback) => {
     ipcRenderer.on('llm:toolProgress', (event, data) => callback(data));
   },
@@ -80,12 +80,13 @@ contextBridge.exposeInMainWorld('windowAPI', {
   close: () => ipcRenderer.invoke('window:close'),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   toggleAlwaysOnTop: () => ipcRenderer.invoke('window:toggleAlwaysOnTop'),
-  getAlwaysOnTop: () => ipcRenderer.invoke('window:getAlwaysOnTop')
+  getAlwaysOnTop: () => ipcRenderer.invoke('window:getAlwaysOnTop'),
+  setWindowMode: (mode) => ipcRenderer.invoke('window:setMode', mode)
 });
 
 // Settings API - exposed to renderer for app settings from Supabase
 contextBridge.exposeInMainWorld('settingsAPI', {
-  getSystemPrompt: () => ipcRenderer.invoke('settings:getSystemPrompt')
+  getSystemPrompt: (options) => ipcRenderer.invoke('settings:getSystemPrompt', options)
 });
 
 // Tools API - exposed to renderer for tool information
@@ -97,4 +98,45 @@ contextBridge.exposeInMainWorld('toolsAPI', {
 // Shell API - exposed to renderer for opening external links
 contextBridge.exposeInMainWorld('shellAPI', {
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url)
+});
+
+// User Input API - exposed to renderer for agent user interaction
+contextBridge.exposeInMainWorld('userInputAPI', {
+  onRequest: (callback) => {
+    ipcRenderer.on('user_input:request', (event, data) => callback(data));
+  },
+  sendResponse: (data) => ipcRenderer.send('user_input:response', data),
+  removeListeners: () => {
+    ipcRenderer.removeAllListeners('user_input:request');
+  }
+});
+
+// User Interface API - exposed for agent display actions
+contextBridge.exposeInMainWorld('userInterfaceAPI', {
+  onPresent: (callback) => {
+    ipcRenderer.on('user_interface:present', (event, data) => callback(data));
+  },
+  sendAck: (data) => ipcRenderer.send('user_interface:ack', data),
+  removeListeners: () => {
+    ipcRenderer.removeAllListeners('user_interface:present');
+  }
+});
+
+// Chat History API - exposed for local chat history storage
+contextBridge.exposeInMainWorld('chatHistoryAPI', {
+  save: (conversation) => ipcRenderer.invoke('chatHistory:save', conversation),
+  load: (id) => ipcRenderer.invoke('chatHistory:load', id),
+  delete: (id) => ipcRenderer.invoke('chatHistory:delete', id),
+  list: () => ipcRenderer.invoke('chatHistory:list'),
+  clearAll: () => ipcRenderer.invoke('chatHistory:clearAll')
+});
+
+// Generic Electron API for renderer communication
+contextBridge.exposeInMainWorld('electronAPI', {
+  receive: (channel, func) => {
+    const validChannels = [];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.on(channel, (event, ...args) => func(...args));
+    }
+  }
 });

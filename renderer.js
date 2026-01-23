@@ -9,10 +9,16 @@ window.addEventListener('unhandledrejection', function (event) {
     console.error('Unhandled promise rejection:', event.reason);
 });
 
+// Initialize marked with KaTeX extension
+marked.use(markedKatex({
+    throwOnError: false,
+    displayMode: false
+}));
+console.log('Marked initialized with KaTeX extension');
+
 // DOM Elements
 const loadingOverlay = document.getElementById('loading-overlay');
 const userAvatar = document.getElementById('user-avatar');
-const userEmail = document.getElementById('user-email');
 const logoutBtn = document.getElementById('logout-btn');
 
 // Profile Menu Elements
@@ -37,6 +43,23 @@ const imageModal = document.getElementById('image-modal');
 const modalImage = document.getElementById('modal-image');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 
+// Validate critical DOM elements
+function validateDOMElements() {
+    const criticalElements = {
+        loadingOverlay, userAvatar, chatMessages, chatInput, chatSendBtn,
+        attachedImagesContainer, tokenBalance, tokenCount
+    };
+    
+    for (const [name, element] of Object.entries(criticalElements)) {
+        if (!element) {
+            console.error(`Critical DOM element missing: ${name}`);
+            alert(`Applikationen kunde inte initieras korrekt. Saknar element: ${name}`);
+            return false;
+        }
+    }
+    return true;
+}
+
 // Custom prompt stored in localStorage
 let customPromptValue = localStorage.getItem('flyt-custom-prompt') || '';
 
@@ -52,11 +75,23 @@ let attachedImages = [];
 // Token state
 let currentTokens = 0;
 
+// Mode state (jobba/chatta)
+let currentMode = 'chatta';
+
 // System prompt (fetched from Supabase)
 let systemPromptFromServer = null;
 
+// Chat history state
+let currentConversationId = null;
+let isConversationSaved = false;
+
 // Initialize the app
 async function initialize() {
+    // Validate DOM elements first
+    if (!validateDOMElements()) {
+        return;
+    }
+    
     try {
         // Set up auth status listener
         window.authAPI.onStatusChanged((data) => {
@@ -95,15 +130,12 @@ async function initialize() {
 function displayUserInfo(user) {
     currentUserData = user;
     if (user.email) {
-        userEmail.textContent = user.email;
-
         // Try to get profile picture from user_metadata (Supabase/Google)
         const avatarUrl = user.user_metadata?.avatar_url;
 
         if (avatarUrl) {
-            userAvatar.innerHTML = `<img src="${avatarUrl}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-            userAvatar.style.padding = '0';
-            userAvatar.style.background = 'transparent';
+            userAvatar.innerHTML = `<img src="${avatarUrl}" alt="Avatar" class="avatar-image">`;
+            userAvatar.classList.add('avatar-custom');
         } else {
             // Create avatar initials from email
             const initials = user.email.charAt(0).toUpperCase();
@@ -164,7 +196,8 @@ window.tokenAPI.onUpdated((data) => {
 
 
 // Logout handler
-logoutBtn.addEventListener('click', async (e) => {
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', async (e) => {
     e.stopPropagation(); // Prevent dropdown from closing if it matters
 
     // Visual feedback
@@ -181,13 +214,16 @@ logoutBtn.addEventListener('click', async (e) => {
         logoutBtn.style.opacity = '1';
         logoutBtn.innerHTML = originalText;
     }
-});
+    });
+}
 
 // Toggle profile dropdown
-userAvatar.addEventListener('click', (e) => {
-    e.stopPropagation();
-    profileMenuContainer.classList.toggle('show');
-});
+if (userAvatar && profileMenuContainer) {
+    userAvatar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profileMenuContainer.classList.toggle('show');
+    });
+}
 
 // Close dropdown when clicking outside
 window.addEventListener('click', (e) => {
@@ -197,20 +233,22 @@ window.addEventListener('click', (e) => {
 });
 
 // Account settings link handler
-accountSettingsBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    window.shellAPI.openExternal('https://flytapp.se/dashboard');
-    profileMenuContainer.classList.remove('show');
-});
+if (accountSettingsBtn && profileMenuContainer) {
+    accountSettingsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.shellAPI.openExternal('https://flytapp.se/dashboard');
+        profileMenuContainer.classList.remove('show');
+    });
+}
 
 // Fetch system prompt from Supabase
 async function loadSystemPrompt() {
     try {
-        const result = await window.settingsAPI.getSystemPrompt();
+        const result = await window.settingsAPI.getSystemPrompt({ mode: currentMode });
         if (result.success && result.prompt) {
             systemPromptFromServer = result.prompt;
-            console.log('System prompt loaded from server');
+            console.log(`System prompt loaded from server for mode: ${currentMode}`);
         } else {
             console.warn('Failed to load system prompt from server');
             // main.js provides the fallback
@@ -263,13 +301,9 @@ async function loadSystemInfo() {
 }
 
 // ============= SYSTEM CONTEXT OPTIMIZATION =============
-// Controls what system info is included in the prompt
-const SYSTEM_CONTEXT_CONFIG = {
-    useMinimalContext: true,  // Use minimal context by default (70% smaller)
-};
 
 /**
- * Build MINIMAL system context (~150 tokens vs ~400 tokens)
+ * Build MINIMAL system context (~150 tokens)
  * Only includes essential info the agent actually needs
  */
 function buildMinimalSystemContext() {
@@ -286,91 +320,6 @@ Dev: ${devTools || 'none'}
 Time: ${systemInfo.currentTime} (${systemInfo.timezone})`;
 }
 
-/**
- * Build FULL system context (legacy, verbose)
- * Includes all details like windows, processes, clipboard, etc.
- */
-function buildFullSystemContext() {
-    if (!systemInfo) return '';
-
-    // Format displays for context
-    const displaysContext = systemInfo.displays?.length > 0
-        ? systemInfo.displays.map(d =>
-            `Display ${d.id}: ${d.resolution} at (${d.bounds.x},${d.bounds.y}), scale ${d.scaleFactor}x${d.isPrimary ? ' [PRIMARY]' : ''}`
-        ).join('\n  ')
-        : 'Unknown display configuration';
-
-    // Format dev tools
-    const devToolsContext = Object.entries(systemInfo.devTools || {}).length > 0
-        ? Object.entries(systemInfo.devTools).map(([name, ver]) => `${name} v${ver}`).join(', ')
-        : 'No common dev tools found';
-
-    // Format power status
-    const powerContext = systemInfo.power?.hasBattery
-        ? `Battery at ${systemInfo.power.level}, ${systemInfo.power.charging ? 'charging' : 'on battery'}`
-        : 'AC Power (no battery)';
-
-    // Format network
-    const networkContext = systemInfo.network?.connected
-        ? `Connected via ${systemInfo.network.interfaces?.map(i => i.name).join(', ') || 'network'}${systemInfo.network.internetAccess ? ' with internet access' : ' (no internet)'}`
-        : 'Not connected to network';
-
-    // Format clipboard
-    let clipboardContext = 'Empty';
-    if (systemInfo.clipboard?.hasText || systemInfo.clipboard?.hasImage) {
-        const parts = [];
-        if (systemInfo.clipboard.hasText) parts.push(`text (${systemInfo.clipboard.textLength} chars)`);
-        if (systemInfo.clipboard.hasImage) parts.push('image');
-        if (systemInfo.clipboard.hasHTML) parts.push('HTML');
-        clipboardContext = `Contains: ${parts.join(', ')}`;
-    }
-
-    // Format disk space
-    const diskContext = systemInfo.diskSpace?.length > 0
-        ? systemInfo.diskSpace.map(d => `${d.drive} has ${d.free} free of ${d.total} (${d.usedPercent} used)`).join(', ')
-        : 'Unknown disk configuration';
-
-    // Format active windows - REMOVED: rarely useful, adds ~100 tokens
-    // Format running processes - REMOVED: never useful, adds ~50 tokens
-
-    return `
-## Current System Context
-
-### System Information
-- **OS**: ${systemInfo.osType} ${systemInfo.osRelease} (${systemInfo.arch})
-- **Hostname**: ${systemInfo.hostname}
-- **User**: ${systemInfo.username}
-- **Shell**: ${systemInfo.shell}
-- **Locale**: ${systemInfo.envInfo?.locale || 'Unknown'}
-
-### Hardware
-- **CPU**: ${systemInfo.cpuModel} (${systemInfo.cpus} cores)
-- **Memory**: ${systemInfo.freeMemory} free of ${systemInfo.totalMemory}
-- **Power**: ${powerContext}
-
-### Displays (for coordinates/UI automation)
-  ${displaysContext}
-- **Total Screen Area**: ${systemInfo.totalScreenArea?.width || '?'}x${systemInfo.totalScreenArea?.height || '?'} pixels
-
-### Storage
-- ${diskContext}
-
-### Network
-- ${networkContext}
-
-### Clipboard
-- ${clipboardContext}
-
-### Installed Dev Tools
-- ${devToolsContext}
-
-### Time Context
-- **Current Time**: ${systemInfo.currentTime}
-- **Timezone**: ${systemInfo.timezone}
-- **Uptime**: ${systemInfo.uptime}
-`;
-}
-
 // Build the full system prompt with system info
 function buildSystemPrompt() {
     const customPrompt = customPromptValue.trim() || systemPromptFromServer;
@@ -379,12 +328,8 @@ function buildSystemPrompt() {
         return customPrompt;
     }
 
-    // Use minimal or full context based on config
-    const systemContext = SYSTEM_CONTEXT_CONFIG.useMinimalContext
-        ? buildMinimalSystemContext()
-        : buildFullSystemContext();
-
-    return `${customPrompt}\n\n${systemContext}`;
+    // Always use minimal context for token efficiency
+    return `${customPrompt}\n\n${buildMinimalSystemContext()}`;
 }
 
 // Render LaTeX math using KaTeX
@@ -409,77 +354,39 @@ function renderMath(latex, displayMode = false) {
 
 // Format message content with code blocks and math
 function formatMessageContent(content) {
-    // First, protect code blocks and math from HTML escaping
-    const codeBlocks = [];
-    const blockMath = [];
-    const inlineMath = [];
+    if (!content) return '';
 
-    // Extract code blocks first (```...```)
-    let processed = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
-        const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-        codeBlocks.push({ lang, code: code.trim() });
-        return placeholder;
-    });
+    try {
+        const parseOptions = { breaks: true, gfm: true };
+        let processed = marked.parse(content, parseOptions);
 
-    // Extract block math ($$...$$)
-    processed = processed.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
-        const placeholder = `__BLOCK_MATH_${blockMath.length}__`;
-        blockMath.push(math.trim());
-        return placeholder;
-    });
-
-    // Extract inline math ($...$) - but not things like $5 or 5$
-    processed = processed.replace(/\$([^$\n]+?)\$/g, (match, math) => {
-        // Skip if it looks like currency (just a number after $)
-        if (/^\d+(\.\d+)?$/.test(math.trim())) {
-            return match;
+        if (processed) {
+            // Post-process links to use our external link system
+            return processed.replace(/<a href="([^"]+)"/g, (match, url) => {
+                if (url.startsWith('#')) return match;
+                return `<a href="#" data-url="${url}" class="external-link"`;
+            });
         }
-        const placeholder = `__INLINE_MATH_${inlineMath.length}__`;
-        inlineMath.push(math.trim());
-        return placeholder;
-    });
+    } catch (e) {
+        console.error('Markdown parsing error:', e);
+    }
 
-    // Escape HTML
-    processed = processed
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-    // Format inline code (`code`)
-    processed = processed.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-    // Format bold (**text**)
-    processed = processed.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-    // Format italic (*text*)
-    processed = processed.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-    // Format newlines
-    processed = processed.replace(/\n/g, '<br>');
-
-    // Restore code blocks
-    codeBlocks.forEach((block, i) => {
-        const escaped = block.code
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-        processed = processed.replace(`__CODE_BLOCK_${i}__`, `<pre><code>${escaped}</code></pre>`);
-    });
-
-    // Restore block math with KaTeX rendering
-    blockMath.forEach((math, i) => {
-        const rendered = renderMath(math, true);
-        processed = processed.replace(`__BLOCK_MATH_${i}__`, `<div class="math-block">${rendered}</div>`);
-    });
-
-    // Restore inline math with KaTeX rendering
-    inlineMath.forEach((math, i) => {
-        const rendered = renderMath(math, false);
-        processed = processed.replace(`__INLINE_MATH_${i}__`, `<span class="math-inline">${rendered}</span>`);
-    });
-
-    return processed;
+    // Safety fallback: simple HTML escape if parser fails
+    return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 }
+
+// Global click delegation for external links
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('.external-link');
+    if (link) {
+        e.preventDefault();
+        const url = link.getAttribute('data-url');
+        if (url) {
+            console.log('Opening external link:', url);
+            window.shellAPI.openExternal(url);
+        }
+    }
+});
 
 // Add message to chat display
 function addMessageToChat(role, content) {
@@ -493,28 +400,28 @@ function addMessageToChat(role, content) {
     messageDiv.className = `chat-message ${role}`;
 
     let avatarHtml = '';
-    let avatarStyle = '';
+    let avatarClass = '';
 
     if (role === 'user') {
         const avatarUrl = currentUserData?.user_metadata?.avatar_url;
         if (avatarUrl) {
-            avatarHtml = `<img src="${avatarUrl}" alt="U" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-            avatarStyle = 'background: transparent; padding: 0;';
+            avatarHtml = `<img src="${avatarUrl}" alt="U" class="avatar-image">`;
+            avatarClass = 'avatar-custom';
         } else {
             avatarHtml = 'U';
         }
     } else {
         // AI logo
-        avatarHtml = `<img src="assets/logo.svg" alt="AI" style="width: 18px; height: 18px; filter: brightness(0) invert(1);">`;
+        avatarHtml = `<img src="assets/logo.svg" alt="AI" class="ai-avatar-logo">`;
     }
 
     messageDiv.innerHTML = `
-        <div class="message-avatar" style="${avatarStyle}">${avatarHtml}</div>
+        <div class="message-avatar ${avatarClass}">${avatarHtml}</div>
         <div class="message-content">${formatMessageContent(content)}</div>
     `;
 
     chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    smoothScrollToBottom();
 }
 
 // Show typing indicator - now uses the unified cube animation
@@ -616,15 +523,16 @@ function getRandomThinkingText() {
 function startThinkingTextCycle() {
     if (thinkingTextInterval) return;
 
+    const thinkingDiv = document.getElementById('thinking-indicator');
+    const textElement = thinkingDiv?.querySelector('.thinking-text');
+    if (!textElement) return;
+
     thinkingTextInterval = setInterval(() => {
-        const textElement = document.querySelector('#thinking-indicator .thinking-text');
-        if (textElement) {
-            textElement.style.opacity = '0';
-            setTimeout(() => {
-                textElement.textContent = getRandomThinkingText();
-                textElement.style.opacity = '0.9';
-            }, 150);
-        }
+        textElement.style.opacity = '0';
+        setTimeout(() => {
+            textElement.textContent = getRandomThinkingText();
+            textElement.style.opacity = '0.9';
+        }, 150);
     }, 2500);
 }
 
@@ -652,19 +560,11 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
 
         thinkingDiv.innerHTML = `
             <div class="message-avatar">
-                <img src="assets/logo.svg" alt="AI" style="width: 18px; height: 18px; filter: brightness(0) invert(1);">
+                <img src="assets/logo.svg" alt="AI" class="ai-avatar-logo">
             </div>
             <div class="thinking-content">
                 <div class="thinking-header">
                     <div class="cube-loader">
-                        <div class="cube"></div>
-                        <div class="cube"></div>
-                        <div class="cube"></div>
-                        <div class="cube"></div>
-                        <div class="cube"></div>
-                        <div class="cube"></div>
-                        <div class="cube"></div>
-                        <div class="cube"></div>
                         <div class="cube"></div>
                     </div>
                     <span class="thinking-text"></span>
@@ -675,7 +575,7 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
         chatMessages.appendChild(thinkingDiv);
     }
 
-    // Update text
+    // Update text only if it has changed to avoid unnecessary reflows
     const textElement = thinkingDiv.querySelector('.thinking-text');
     if (textElement && textElement.textContent !== displayText) {
         textElement.textContent = displayText;
@@ -684,11 +584,7 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
     // Update cube loader mode
     const cubeLoader = thinkingDiv.querySelector('.cube-loader');
     if (cubeLoader) {
-        if (isToolMode) {
-            cubeLoader.classList.add('tool-mode');
-        } else {
-            cubeLoader.classList.remove('tool-mode');
-        }
+        cubeLoader.classList.toggle('tool-mode', isToolMode);
     }
 
     // Update history/details
@@ -703,8 +599,8 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
                 detailsContainer.appendChild(detailsElement);
             }
 
+            const headerHtml = `<summary>Visa aktivitet (${toolExecutionHistory.length})</summary>`;
             const historyHtml = `
-                <summary>Visa aktivitet (${toolExecutionHistory.length})</summary>
                 <div class="thinking-history">
                     ${toolExecutionHistory.map(t => `
                         <div class="thinking-history-item ${t.success === true ? 'success' : t.success === false ? 'error' : 'pending'}">
@@ -716,19 +612,54 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
                 </div>
             `;
 
-            // Only update if content changed to avoid unnecessary reflows
-            if (detailsElement.innerHTML !== historyHtml) {
-                // Preserve 'open' state if it was already open
-                const wasOpen = detailsElement.open;
-                detailsElement.innerHTML = historyHtml;
-                if (wasOpen) detailsElement.open = true;
+            // Granular update: only update summary text if count changed
+            const summary = detailsElement.querySelector('summary');
+            const expectedSummary = `Visa aktivitet (${toolExecutionHistory.length})`;
+            if (!summary || summary.textContent !== expectedSummary) {
+                if (!summary) {
+                    detailsElement.insertAdjacentHTML('afterbegin', headerHtml);
+                } else {
+                    summary.textContent = expectedSummary;
+                }
             }
+
+            // Granular update: sync history list children with toolExecutionHistory (Issue 2)
+            let historyList = detailsElement.querySelector('.thinking-history');
+            if (!historyList) {
+                historyList = document.createElement('div');
+                historyList.className = 'thinking-history';
+                detailsElement.appendChild(historyList);
+            }
+
+            toolExecutionHistory.forEach((t, idx) => {
+                let item = historyList.children[idx];
+                const statusClass = t.success === true ? 'success' : (t.success === false ? 'error' : 'pending');
+                const statusSymbol = t.success === true ? '✓' : (t.success === false ? '✗' : '⋯');
+
+                if (!item) {
+                    item = document.createElement('div');
+                    item.className = `thinking-history-item ${statusClass}`;
+                    item.innerHTML = `
+                        <span class="history-status">${statusSymbol}</span>
+                        <span class="history-action">${escapeHtml(t.verb)}</span>
+                        ${t.param ? `<span class="history-param">${escapeHtml(t.param)}</span>` : ''}
+                    `;
+                    historyList.appendChild(item);
+                } else {
+                    // Update existing item classes and symbols if they changed
+                    if (!item.classList.contains(statusClass)) {
+                        item.className = `thinking-history-item ${statusClass}`;
+                        const statusElem = item.querySelector('.history-status');
+                        if (statusElem) statusElem.textContent = statusSymbol;
+                    }
+                }
+            });
         } else {
             detailsContainer.innerHTML = '';
         }
     }
 
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    smoothScrollToBottom();
     startThinkingTextCycle();
 }
 
@@ -778,9 +709,26 @@ function removeThinkingIndicator() {
 
 // Escape HTML for safe display
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+// Global scroll helper to prevent layout thrashing
+let scrollTimeout;
+function smoothScrollToBottom() {
+    if (scrollTimeout) cancelAnimationFrame(scrollTimeout);
+    scrollTimeout = requestAnimationFrame(() => {
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    });
 }
 
 // Remove typing indicator (and thinking indicator)
@@ -858,12 +806,16 @@ async function sendMessage() {
         // Build messages with system prompt
         // Model is controlled server-side via Supabase
         const systemPrompt = buildSystemPrompt();
-        const messagesWithSystem = [
+        const apiMessages = [
             { role: 'system', content: systemPrompt },
             ...conversationHistory
         ];
 
-        const result = await window.llmAPI.chat(messagesWithSystem);
+        // IPC call to main process
+        const result = await window.llmAPI.chat({
+            messages: apiMessages,
+            mode: currentMode
+        });
 
         removeTypingIndicator();
 
@@ -871,6 +823,9 @@ async function sendMessage() {
             // Add assistant message to history and display
             conversationHistory.push({ role: 'assistant', content: result.message });
             addMessageToChat('assistant', result.message);
+
+            // Auto-save conversation after each response
+            saveCurrentConversation();
 
         } else {
             // Check for insufficient tokens
@@ -892,51 +847,317 @@ async function sendMessage() {
     }
 }
 
-// Clear chat history
-function clearChat() {
+// ===== CHAT HISTORY MANAGEMENT =====
+
+// Generate a title from the first user message
+function generateConversationTitle(messages) {
+    const firstUserMessage = messages.find(m => m.role === 'user');
+    if (!firstUserMessage) return 'Ny konversation';
+
+    let text = '';
+    if (typeof firstUserMessage.content === 'string') {
+        text = firstUserMessage.content;
+    } else if (Array.isArray(firstUserMessage.content)) {
+        const textPart = firstUserMessage.content.find(p => p.type === 'text');
+        text = textPart?.text || '[Bild]';
+    }
+
+    // Truncate to reasonable length
+    return text.length > 50 ? text.substring(0, 50) + '...' : text;
+}
+
+// Generate a preview from the last assistant message
+function generateConversationPreview(messages) {
+    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+    if (!lastAssistant) return '';
+
+    const text = lastAssistant.content || '';
+    return text.length > 100 ? text.substring(0, 100) + '...' : text;
+}
+
+// Save the current conversation to history
+async function saveCurrentConversation() {
+    // Only save if there are actual messages (not just system message)
+    const userMessages = conversationHistory.filter(m => m.role !== 'system');
+    if (userMessages.length === 0) {
+        console.log('No messages to save');
+        return;
+    }
+
+    try {
+        const conversation = {
+            id: currentConversationId || Date.now().toString(),
+            title: generateConversationTitle(userMessages),
+            preview: generateConversationPreview(userMessages),
+            messages: conversationHistory,
+            createdAt: isConversationSaved ? undefined : new Date().toISOString()
+        };
+
+        const result = await window.chatHistoryAPI.save(conversation);
+        if (result.success) {
+            currentConversationId = result.id;
+            isConversationSaved = true;
+            console.log('Conversation saved:', result.id);
+        }
+    } catch (error) {
+        console.error('Failed to save conversation:', error);
+    }
+}
+
+// Start a new conversation (saves current one first)
+async function startNewConversation() {
+    // Save current conversation if there are messages
+    await saveCurrentConversation();
+
+    // Reset state
     conversationHistory = [];
     attachedImages = [];
+    currentConversationId = null;
+    isConversationSaved = false;
+
     renderAttachedImages();
     chatMessages.innerHTML = `
         <div class="chat-empty"></div>
     `;
+
+    // Refresh history list
+    renderHistoryList();
 }
 
-// Chat event listeners
-chatSendBtn.addEventListener('click', sendMessage);
+// Load a conversation from history
+async function loadConversation(id) {
+    try {
+        // Save current conversation first if needed
+        await saveCurrentConversation();
 
-chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
+        const result = await window.chatHistoryAPI.load(id);
+        if (!result.success) {
+            console.error('Failed to load conversation:', result.error);
+            return;
+        }
+
+        const conversation = result.conversation;
+
+        // Restore state
+        conversationHistory = conversation.messages || [];
+        currentConversationId = conversation.id;
+        isConversationSaved = true;
+        attachedImages = [];
+
+        // Rebuild the UI
+        chatMessages.innerHTML = '';
+
+        // Re-render all messages (skip system messages)
+        for (const msg of conversationHistory) {
+            if (msg.role !== 'system') {
+                // Check if message has images
+                const images = [];
+                if (Array.isArray(msg.content)) {
+                    for (const part of msg.content) {
+                        if (part.type === 'image_url') {
+                            images.push(part.image_url.url);
+                        }
+                    }
+                    const textPart = msg.content.find(p => p.type === 'text');
+                    const text = textPart?.text || '[Bild]';
+                    addMessageToChatWithImages(msg.role, text, images);
+                } else {
+                    addMessageToChat(msg.role, msg.content);
+                }
+            }
+        }
+
+        // If no messages were rendered, show empty state
+        if (chatMessages.children.length === 0) {
+            chatMessages.innerHTML = `<div class="chat-empty"></div>`;
+        }
+
+        renderAttachedImages();
+
+        // Close history panel
+        const historyPanel = document.getElementById('history-panel');
+        historyPanel.classList.remove('show');
+
+        console.log('Conversation loaded:', id);
+    } catch (error) {
+        console.error('Failed to load conversation:', error);
+    }
+}
+
+// Delete a conversation from history
+async function deleteConversation(id, event) {
+    event.stopPropagation(); // Prevent triggering the load
+
+    try {
+        const result = await window.chatHistoryAPI.delete(id);
+        if (result.success) {
+            // If we deleted the current conversation, reset state
+            if (id === currentConversationId) {
+                currentConversationId = null;
+                isConversationSaved = false;
+            }
+            renderHistoryList();
+        }
+    } catch (error) {
+        console.error('Failed to delete conversation:', error);
+    }
+}
+
+// Clear all chat history
+async function clearAllHistory() {
+    if (!confirm('Är du säker på att du vill radera all chatthistorik?')) return;
+
+    try {
+        const result = await window.chatHistoryAPI.clearAll();
+        if (result.success) {
+            currentConversationId = null;
+            isConversationSaved = false;
+            renderHistoryList();
+        }
+    } catch (error) {
+        console.error('Failed to clear history:', error);
+    }
+}
+
+// Format relative time
+function formatRelativeTime(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just nu';
+    if (diffMins < 60) return `${diffMins} min sedan`;
+    if (diffHours < 24) return `${diffHours} tim sedan`;
+    if (diffDays === 1) return 'Igår';
+    if (diffDays < 7) return `${diffDays} dagar sedan`;
+
+    return date.toLocaleDateString('sv-SE');
+}
+
+// Render the history list
+async function renderHistoryList() {
+    const historyList = document.getElementById('history-list');
+
+    try {
+        const result = await window.chatHistoryAPI.list();
+        if (!result.success) {
+            historyList.innerHTML = '<div class="history-empty">Kunde inte ladda historik</div>';
+            return;
+        }
+
+        const conversations = result.conversations || [];
+
+        if (conversations.length === 0) {
+            historyList.innerHTML = '<div class="history-empty">Ingen historik ännu</div>';
+            return;
+        }
+
+        historyList.innerHTML = conversations.map(conv => `
+            <div class="history-item${conv.id === currentConversationId ? ' active' : ''}" onclick="loadConversation('${conv.id}')">
+                <div class="history-item-content">
+                    <div class="history-item-title">${escapeHtml(conv.title)}</div>
+                    <div class="history-item-preview">${escapeHtml(conv.preview)}</div>
+                    <div class="history-item-meta">${formatRelativeTime(conv.updatedAt || conv.createdAt)} • ${conv.messageCount || 0} meddelanden</div>
+                </div>
+                <button class="history-item-delete" onclick="deleteConversation('${conv.id}', event)" title="Ta bort">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Failed to render history:', error);
+        historyList.innerHTML = '<div class="history-empty">Kunde inte ladda historik</div>';
+    }
+}
+
+// Make functions available globally for onclick handlers
+window.loadConversation = loadConversation;
+window.deleteConversation = deleteConversation;
+
+// History panel elements - using global declarations from top of file
+const historyBtn = document.getElementById('history-btn');
+const historyPanel = document.getElementById('history-panel');
+const historyClearAllBtn = document.getElementById('history-clear-all-btn');
+
+// Toggle history panel
+if (historyBtn && historyPanel) {
+    historyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isShowing = historyPanel.classList.toggle('show');
+        if (isShowing) {
+            renderHistoryList();
+        }
+    });
+}
+
+// Close history panel when clicking outside
+document.addEventListener('click', (e) => {
+    if (historyPanel && historyPanel.classList.contains('show') &&
+        !historyPanel.contains(e.target) && !historyBtn.contains(e.target)) {
+        historyPanel.classList.remove('show');
     }
 });
 
-// Auto-resize textarea
-chatInput.addEventListener('input', () => {
-    chatInput.style.height = 'auto';
-    chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
-});
+// Clear all history button
+if (historyClearAllBtn) {
+    historyClearAllBtn.addEventListener('click', clearAllHistory);
+}
 
-clearChatBtn.addEventListener('click', clearChat);
+// "Ny konversation" button - start new conversation
+if (clearChatBtn) {
+    clearChatBtn.addEventListener('click', startNewConversation);
+}
+
+// Chat event listeners
+if (chatSendBtn) {
+    chatSendBtn.addEventListener('click', sendMessage);
+}
+
+if (chatInput) {
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // Cache font size for auto-resize calculation (performance optimization)
+    const baseFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const maxHeight = baseFontSize * 7.5; // 7.5rem
+    
+    // Auto-resize textarea
+    chatInput.addEventListener('input', () => {
+        chatInput.style.height = 'auto';
+        chatInput.style.height = Math.min(chatInput.scrollHeight, maxHeight) + 'px';
+    });
+}
 
 // ===== SNIPPING TOOL FUNCTIONALITY =====
 
 // Open snipping overlay
-snipBtn.addEventListener('click', async () => {
-    snipBtn.disabled = true;
+if (snipBtn) {
+    snipBtn.addEventListener('click', async () => {
+        snipBtn.disabled = true;
     try {
         await window.snipAPI.openOverlay();
     } catch (error) {
         console.error('Failed to open snipping tool:', error);
         snipBtn.disabled = false;
     }
-});
+    });
+}
 
 // Listen for captured snips
 window.snipAPI.onCaptured((data) => {
     console.log('Snip captured:', data);
-    snipBtn.disabled = false;
+    if (snipBtn) {
+        snipBtn.disabled = false;
+    }
 
     if (data && data.imageData) {
         addAttachedImage(data.imageData);
@@ -951,15 +1172,19 @@ const dropOverlay = document.getElementById('drop-overlay');
 const chatSection = document.querySelector('.chat-section');
 
 // Upload button click handler
-uploadBtn.addEventListener('click', () => {
-    fileInput.click();
-});
+if (uploadBtn && fileInput) {
+    uploadBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+}
 
 // File input change handler
-fileInput.addEventListener('change', (e) => {
-    handleFiles(e.target.files);
-    fileInput.value = ''; // Reset to allow re-uploading same file
-});
+if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+        fileInput.value = ''; // Reset to allow re-uploading same file
+    });
+}
 
 // Handle uploaded files
 async function handleFiles(files) {
@@ -988,7 +1213,8 @@ async function handleFiles(files) {
                 const fileContent = `\n\n--- ${file.name} ---\n\`\`\`\n${content}\n\`\`\`\n`;
                 chatInput.value = currentText + fileContent;
                 chatInput.style.height = 'auto';
-                chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+                const maxHeight = parseFloat(getComputedStyle(document.documentElement).fontSize) * 7.5; // 7.5rem
+                chatInput.style.height = Math.min(chatInput.scrollHeight, maxHeight) + 'px';
                 chatInput.focus();
             };
             reader.readAsText(file);
@@ -1014,7 +1240,8 @@ document.addEventListener('drop', (e) => {
 });
 
 // Chat section drag events
-chatSection.addEventListener('dragenter', (e) => {
+if (chatSection && dropOverlay) {
+    chatSection.addEventListener('dragenter', (e) => {
     e.preventDefault();
     e.stopPropagation();
     dragCounter++;
@@ -1045,7 +1272,8 @@ chatSection.addEventListener('drop', (e) => {
     if (files.length > 0) {
         handleFiles(files);
     }
-});
+    });
+}
 
 // Add an attached image to the pending list
 function addAttachedImage(imageData) {
@@ -1062,49 +1290,65 @@ function removeAttachedImage(id) {
 
 // Render attached images preview
 function renderAttachedImages() {
+    if (!attachedImagesContainer) return;
+    
     if (attachedImages.length === 0) {
         attachedImagesContainer.innerHTML = '';
         return;
     }
 
+    // Use data attribute instead of onclick to enable event delegation
     attachedImagesContainer.innerHTML = attachedImages.map(img => `
         <div class="attached-image" data-id="${img.id}">
             <img src="${img.data}" alt="Attached screenshot">
-            <button class="remove-btn" onclick="removeAttachedImage(${img.id})">×</button>
+            <button class="remove-btn" data-remove-id="${img.id}">×</button>
         </div>
     `).join('');
+}
 
-    // Add click handlers for removal
-    attachedImagesContainer.querySelectorAll('.remove-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+// Event delegation for attached image removal (prevents memory leaks)
+if (attachedImagesContainer) {
+    attachedImagesContainer.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.remove-btn');
+        if (removeBtn) {
             e.stopPropagation();
-            const id = parseInt(btn.closest('.attached-image').dataset.id);
-            removeAttachedImage(id);
-        });
+            const id = parseInt(removeBtn.dataset.removeId);
+            if (!isNaN(id)) {
+                removeAttachedImage(id);
+            }
+        }
     });
 }
 
 // Image modal functionality
 function showImageModal(src) {
-    modalImage.src = src;
-    imageModal.classList.add('show');
+    if (modalImage && imageModal) {
+        modalImage.src = src;
+        imageModal.classList.add('show');
+    }
 }
 
 function hideImageModal() {
-    imageModal.classList.remove('show');
-    modalImage.src = '';
+    if (imageModal && modalImage) {
+        imageModal.classList.remove('show');
+        modalImage.src = '';
+    }
 }
 
-imageModal.addEventListener('click', (e) => {
-    if (e.target === imageModal || e.target === modalCloseBtn) {
-        hideImageModal();
-    }
-});
+if (imageModal) {
+    imageModal.addEventListener('click', (e) => {
+        if (e.target === imageModal || e.target === modalCloseBtn) {
+            hideImageModal();
+        }
+    });
+}
 
-modalCloseBtn.addEventListener('click', hideImageModal);
+if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', hideImageModal);
+}
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && imageModal.classList.contains('show')) {
+    if (e.key === 'Escape' && imageModal && imageModal.classList.contains('show')) {
         hideImageModal();
     }
 });
@@ -1121,45 +1365,45 @@ function addMessageToChatWithImages(role, content, images = []) {
     messageDiv.className = `chat-message ${role}`;
 
     let avatarHtml = '';
-    let avatarStyle = '';
+    let avatarClass = '';
 
     if (role === 'user') {
         const avatarUrl = currentUserData?.user_metadata?.avatar_url;
         if (avatarUrl) {
-            avatarHtml = `<img src="${avatarUrl}" alt="U" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-            avatarStyle = 'background: transparent; padding: 0;';
+            avatarHtml = `<img src="${avatarUrl}" alt="U" class="avatar-image">`;
+            avatarClass = 'avatar-custom';
         } else {
             avatarHtml = 'U';
         }
     } else {
         // AI logo
-        avatarHtml = `<img src="assets/logo.svg" alt="AI" style="width: 18px; height: 18px; filter: brightness(0) invert(1);">`;
+        avatarHtml = `<img src="assets/logo.svg" alt="AI" class="ai-avatar-logo">`;
     }
 
     let imagesHtml = '';
     if (images && images.length > 0) {
         imagesHtml = `
             <div class="message-images">
-                ${images.map(img => `<img src="${img}" alt="Screenshot" onclick="showImageModal('${img}')">`).join('')}
+                ${images.map(img => `<img src="${img}" alt="Screenshot">`).join('')}
             </div>
         `;
     }
 
     messageDiv.innerHTML = `
-        <div class="message-avatar" style="${avatarStyle}">${avatarHtml}</div>
+        <div class="message-avatar ${avatarClass}">${avatarHtml}</div>
         <div class="message-content">
             ${imagesHtml}
             ${content ? formatMessageContent(content) : ''}
         </div>
     `;
 
-    // Add click handlers for images
+    // Add click handlers for images (Issue 4: Removed redundant onclick from HTML string)
     messageDiv.querySelectorAll('.message-images img').forEach(img => {
         img.addEventListener('click', () => showImageModal(img.src));
     });
 
     chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    smoothScrollToBottom();
 }
 
 // Re-enable snip button when window regains focus (in case snipping was cancelled)
@@ -1180,6 +1424,11 @@ const closeBtn = document.getElementById('close-btn');
 
 // Initialize window control buttons
 async function initializeWindowControls() {
+    if (!pinBtn || !minimizeBtn || !closeBtn) {
+        console.warn('Window control buttons not found');
+        return;
+    }
+    
     // Check initial always-on-top status
     const result = await window.windowAPI.getAlwaysOnTop();
     if (result.success && result.alwaysOnTop) {
@@ -1205,7 +1454,224 @@ async function initializeWindowControls() {
     });
 }
 
+// Mode Toggle logic
+function initializeModeToggle() {
+    const jobbaBtn = document.getElementById('jobba-btn');
+    const chattaBtn = document.getElementById('chatta-btn');
+    // Use global chatInput instead of redeclaring (fixes Issue #1)
+    
+    if (!jobbaBtn || !chattaBtn || !chatInput) {
+        console.warn('Mode toggle elements not found');
+        return;
+    }
+
+    const setMode = (mode) => {
+        currentMode = mode;
+
+        // Update UI
+        jobbaBtn.classList.toggle('active', mode === 'jobba');
+        chattaBtn.classList.toggle('active', mode === 'chatta');
+
+        // Update placeholder
+        if (mode === 'chatta') {
+            chatInput.placeholder = 'Vad kan jag hjälpa till med?';
+        } else {
+            chatInput.placeholder = 'Vad vill du göra idag?';
+        }
+
+        // Update window size and constraints (fast, local)
+        window.windowAPI.setWindowMode(mode);
+
+        // Reload system prompt for new mode (async, remote)
+        loadSystemPrompt();
+    };
+
+    jobbaBtn.addEventListener('click', () => setMode('jobba'));
+    chattaBtn.addEventListener('click', () => setMode('chatta'));
+
+    // Initialize with default mode
+    setMode(currentMode);
+}
+
 // Initialize on load
 initialize();
 initializeChat();
 initializeWindowControls();
+initializeModeToggle();
+
+// ===== USER INPUT LOGIC (INLINE CHAT) =====
+
+window.userInputAPI.onRequest(({ requestId, prompt, type, options }) => {
+    addInteractiveInputToChat(requestId, prompt, type, options);
+});
+
+function addInteractiveInputToChat(requestId, prompt, type, options) {
+    // Remove thinking indicator if present
+    removeThinkingIndicator();
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message assistant interactive-input';
+    messageDiv.id = `interactive-${requestId}`;
+
+    messageDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="assets/logo.svg" alt="AI" style="width: 18px; height: 18px; filter: brightness(0) invert(1);">
+        </div>
+        <div class="message-content interactive-content">
+            <div class="interactive-prompt">${formatMessageContent(prompt)}</div>
+            <div class="interactive-form" id="form-${requestId}"></div>
+        </div>
+    `;
+
+    chatMessages.appendChild(messageDiv);
+    const formContainer = messageDiv.querySelector(`#form-${requestId}`);
+
+    if (type === 'select' && options && options.length > 0) {
+        // Render options as buttons in a grid/list
+        const optionsList = document.createElement('div');
+        optionsList.className = 'interactive-options-list';
+
+        options.forEach(option => {
+            const btn = document.createElement('button');
+            btn.className = 'interactive-option-btn';
+            btn.textContent = option;
+            btn.onclick = () => submitInlineInput(requestId, option, messageDiv);
+            optionsList.appendChild(btn);
+        });
+
+        formContainer.appendChild(optionsList);
+    } else {
+        // Render text input
+        const inputContainer = document.createElement('div');
+        inputContainer.className = 'interactive-text-input-container';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'interactive-text-input';
+        input.placeholder = 'Skriv ditt svar...';
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                submitInlineInput(requestId, input.value, messageDiv);
+            }
+        };
+
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'interactive-submit-btn';
+        submitBtn.innerHTML = `
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+            </svg>
+        `;
+        submitBtn.onclick = () => submitInlineInput(requestId, input.value, messageDiv);
+
+        inputContainer.appendChild(input);
+        inputContainer.appendChild(submitBtn);
+        formContainer.appendChild(inputContainer);
+
+        // Auto-focus logic
+        setTimeout(() => input.focus(), 100);
+    }
+
+    smoothScrollToBottom();
+}
+
+function submitInlineInput(requestId, value, messageDiv) {
+    if (!value) return;
+
+    // Send response
+    window.userInputAPI.sendResponse({ requestId, value });
+
+    // Mark as completed in UI
+    const formContainer = messageDiv.querySelector('.interactive-form');
+    if (formContainer) {
+        formContainer.innerHTML = `<div class="interactive-completed">
+            <span class="completed-icon">✓</span>
+            <span class="completed-value">${escapeHtml(value)}</span>
+        </div>`;
+    }
+}
+
+// ===== INFO PRESENTATION LOGIC (INLINE CHAT) =====
+
+window.userInterfaceAPI.onPresent(({ requestId, title, content, items, data, style }) => {
+    addInteractiveInfoToChat(requestId, title, content, items, data, style);
+});
+
+function addInteractiveInfoToChat(requestId, title, content, items, data, style) {
+    // Remove thinking indicator if present
+    removeThinkingIndicator();
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message assistant interactive-info';
+    messageDiv.id = `info-${requestId}`;
+
+    // Generate content HTML based on style
+    let innerContent = '';
+
+    if (style === 'steps' && items && Array.isArray(items)) {
+        innerContent = '<div class="info-steps">';
+        items.forEach((step, index) => {
+            innerContent += `
+                <div class="info-step">
+                    <div class="info-step-number">${index + 1}</div>
+                    <div class="info-step-text">${formatMessageContent(step)}</div>
+                </div>
+            `;
+        });
+        innerContent += '</div>';
+
+    } else if (style === 'table' && data && typeof data === 'object') {
+        innerContent = '<div class="info-table-container"><table class="info-table">';
+        Object.entries(data).forEach(([key, value]) => {
+            innerContent += `
+                <tr>
+                    <td>${escapeHtml(key)}</td>
+                    <td>${escapeHtml(String(value))}</td>
+                </tr>
+            `;
+        });
+        innerContent += '</table></div>';
+
+    } else if (style === 'list' && items && Array.isArray(items)) {
+        innerContent = '<div class="info-content-markdown"><ul>';
+        items.forEach(item => {
+            innerContent += `<li>${formatMessageContent(item)}</li>`;
+        });
+        innerContent += '</ul></div>';
+
+    } else {
+        // Default text/markdown
+        innerContent = `<div class="info-content-markdown">${formatMessageContent(content || '')}</div>`;
+    }
+
+    messageDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="assets/logo.svg" alt="AI" style="width: 18px; height: 18px; filter: brightness(0) invert(1);">
+        </div>
+        <div class="message-content interactive-content">
+            <div class="interactive-header">
+                ${title ? `<div class="interactive-title">${escapeHtml(title)}</div>` : ''}
+            </div>
+            <div class="interactive-body">
+                ${innerContent}
+            </div>
+            <div class="interactive-actions" id="actions-${requestId}">
+                <button class="interactive-ack-btn" onclick="acknowledgeInfo('${requestId}', this)">
+                    OK / Fortsätt
+                </button>
+            </div>
+        </div>
+    `;
+
+    chatMessages.appendChild(messageDiv);
+    smoothScrollToBottom();
+}
+
+// Global function for the onclick handler (needs to be attached to window)
+window.acknowledgeInfo = (requestId, btn) => {
+    window.userInterfaceAPI.sendAck({ requestId });
+
+    // UI feedback
+    const actionContainer = btn.parentElement;
+    actionContainer.innerHTML = '<span class="interactive-ack-text">✓ Fortsätter...</span>';
+};

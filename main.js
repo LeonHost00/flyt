@@ -42,21 +42,10 @@ function initAutoUpdate() {
   autoUpdater.on('update-downloaded', (info) => {
     console.log(`Update downloaded: version ${info.version}`);
 
-    // Notify user that the app will restart for update
-    const notification = new Notification({
-      title: 'Flyt Uppdatering',
-      body: `Version ${info.version} har laddats ner och kommer att installeras nu.`,
-      icon: path.join(__dirname, 'assets', 'icon.png')
-    });
-
-    notification.show();
-
-    // Small delay to allow user to see notification before restart
-    setTimeout(() => {
-      console.log('Quitting and installing update...');
-      isQuitting = true;
-      autoUpdater.quitAndInstall(false, true);
-    }, 5000);
+    // Force immediate installation as requested
+    console.log('Forcing immediate update installation...');
+    isQuitting = true;
+    autoUpdater.quitAndInstall(false, true);
   });
 
   // Initial check on startup
@@ -853,6 +842,9 @@ function createMainWindow() {
   mainWindow.loadFile('index.html');
   console.log('Main window created - helper popup style');
 
+  // Set initial constraints for Chatta mode (standard)
+  mainWindow.setMinimumSize(Math.round(screenWidth * 0.30), Math.round(screenHeight * 0.9));
+
   // Hide to tray instead of quitting when closed
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
@@ -1194,12 +1186,167 @@ ipcMain.handle('window:getAlwaysOnTop', async () => {
   return { success: false, alwaysOnTop: false };
 });
 
+// Set window mode (size and constraints)
+ipcMain.handle('window:setMode', (event, mode) => {
+  if (!mainWindow) return { success: false };
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const { x: workAreaX, y: workAreaY } = primaryDisplay.workArea;
+
+  // Always unmaximize first to ensure setBounds takes effect correctly
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  }
+
+  if (mode === 'jobba') {
+    console.log('Switching to Jobba mode (fullscreen)');
+    // Jobba: Full screen by default (within work area)
+    mainWindow.setBounds({
+      x: workAreaX,
+      y: workAreaY,
+      width: screenWidth,
+      height: screenHeight
+    }, true);
+
+    // Set Jobba limits: 50-100% width, 90-100% height
+    mainWindow.setMinimumSize(Math.round(screenWidth * 0.5), Math.round(screenHeight * 0.9));
+  } else {
+    console.log('Switching to Chatta mode (standard)');
+    // Chatta: "As it is now" by default
+    mainWindow.setMinimumSize(Math.round(screenWidth * 0.30), Math.round(screenHeight * 0.9));
+
+    const windowWidth = Math.round(screenWidth * 0.38);
+    const windowHeight = screenHeight - 40;
+    const windowX = workAreaX + screenWidth - windowWidth - 10;
+    const windowY = workAreaY + 20;
+
+    mainWindow.setBounds({
+      x: windowX,
+      y: windowY,
+      width: windowWidth,
+      height: windowHeight
+    }, true);
+  }
+
+  return { success: true };
+});
+
 // Open external URL in browser
 ipcMain.handle('shell:openExternal', async (event, url) => {
   try {
     await shell.openExternal(url);
     return { success: true };
   } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ===== CHAT HISTORY IPC HANDLERS =====
+// Stores chat history locally using electron-store
+
+// Save a conversation to history
+ipcMain.handle('chatHistory:save', async (event, conversation) => {
+  try {
+    // Get existing history
+    const history = store.get('chatHistory', []);
+
+    // Create conversation entry with metadata
+    const entry = {
+      id: conversation.id || Date.now().toString(),
+      title: conversation.title || 'Ny konversation',
+      preview: conversation.preview || '',
+      messages: conversation.messages || [],
+      createdAt: conversation.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: conversation.messages?.length || 0
+    };
+
+    // Check if conversation already exists (update) or is new (add)
+    const existingIndex = history.findIndex(h => h.id === entry.id);
+    if (existingIndex >= 0) {
+      history[existingIndex] = entry;
+    } else {
+      // Add to beginning of list
+      history.unshift(entry);
+    }
+
+    // Limit history to 100 conversations to prevent excessive storage
+    const limitedHistory = history.slice(0, 100);
+
+    store.set('chatHistory', limitedHistory);
+    console.log(`Chat history saved: ${entry.id} - ${entry.title}`);
+
+    return { success: true, id: entry.id };
+  } catch (error) {
+    console.error('Error saving chat history:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Load a specific conversation from history
+ipcMain.handle('chatHistory:load', async (event, id) => {
+  try {
+    const history = store.get('chatHistory', []);
+    const conversation = history.find(h => h.id === id);
+
+    if (!conversation) {
+      return { success: false, error: 'Konversation hittades inte' };
+    }
+
+    return { success: true, conversation };
+  } catch (error) {
+    console.error('Error loading chat history:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Delete a conversation from history
+ipcMain.handle('chatHistory:delete', async (event, id) => {
+  try {
+    const history = store.get('chatHistory', []);
+    const filteredHistory = history.filter(h => h.id !== id);
+
+    store.set('chatHistory', filteredHistory);
+    console.log(`Chat history deleted: ${id}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting chat history:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// List all conversations in history (with metadata only, not full messages)
+ipcMain.handle('chatHistory:list', async () => {
+  try {
+    const history = store.get('chatHistory', []);
+
+    // Return only metadata for the list view
+    const summaries = history.map(h => ({
+      id: h.id,
+      title: h.title,
+      preview: h.preview,
+      createdAt: h.createdAt,
+      updatedAt: h.updatedAt,
+      messageCount: h.messageCount
+    }));
+
+    return { success: true, conversations: summaries };
+  } catch (error) {
+    console.error('Error listing chat history:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Clear all chat history
+ipcMain.handle('chatHistory:clearAll', async () => {
+  try {
+    store.set('chatHistory', []);
+    console.log('All chat history cleared');
+    return { success: true };
+  } catch (error) {
+    console.error('Error clearing chat history:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1333,9 +1480,78 @@ function estimateTokenCount(messages) {
   return Math.ceil(totalChars / 4);
 }
 
+// Helper to ask user for input via UI
+function askUser(mainWindow, prompt, type = 'text', options = []) {
+  return new Promise((resolve) => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      resolve('User interface not available');
+      return;
+    }
+
+    const requestId = Date.now().toString();
+
+    // Listener for response
+    const responseHandler = (event, response) => {
+      // Only handle response for this request
+      if (response.requestId === requestId) {
+        ipcMain.removeListener('user_input:response', responseHandler);
+        resolve(response.value);
+      }
+    };
+
+    ipcMain.on('user_input:response', responseHandler);
+
+    // Send request to renderer
+    mainWindow.webContents.send('user_input:request', {
+      requestId,
+      prompt,
+      type,
+      options
+    });
+
+    // Bring window to front
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
+// Helper to present info to user via UI
+function presentInfo(mainWindow, data) {
+  return new Promise((resolve) => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      resolve();
+      return;
+    }
+
+    const requestId = Date.now().toString();
+
+    // Listener for acknowledgement
+    const ackHandler = (event, response) => {
+      if (response.requestId === requestId) {
+        ipcMain.removeListener('user_interface:ack', ackHandler);
+        resolve();
+      }
+    };
+
+    ipcMain.on('user_interface:ack', ackHandler);
+
+    // Send request to renderer
+    mainWindow.webContents.send('user_interface:present', {
+      requestId,
+      ...data
+    });
+
+    // Bring window to front
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
 // LLM Chat handler using LangGraph Agent
 // Uses the new MCP/LangGraph tool system
-ipcMain.handle('llm:chat', async (event, { messages }) => {
+ipcMain.handle('llm:chat', async (event, { messages, mode = 'jobba' }) => {
   try {
     // Ensure user is authenticated before allowing LLM access
     if (!currentUser) {
@@ -1376,10 +1592,13 @@ ipcMain.handle('llm:chat', async (event, { messages }) => {
       messages,
       apiKey,
       model,
+      useTools: mode === 'jobba',
       context: {
         user: currentUser,
         cwd: os.homedir(),
-        braveApiKey: await getBraveSearchApiKey()
+        braveApiKey: await getBraveSearchApiKey(),
+        askUser: (prompt, type, options) => askUser(mainWindow, prompt, type, options),
+        presentInfo: (data) => presentInfo(mainWindow, data)
       },
       onToolProgress: (progress) => {
         // Send progress update to renderer
@@ -1570,6 +1789,7 @@ const SYSTEM_PROMPT_CACHE_TTL = 60000; // Cache for 1 minute
 
 // Generic fallback if Supabase is unreachable
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant.';
+const DEFAULT_CHAT_SYSTEM_PROMPT = 'Du är Flyt Chat, en hjälpsam AI-assistent.'; // Minimal fallback
 
 // Fetch system prompt from Supabase app_settings
 async function getSystemPrompt() {
@@ -1605,9 +1825,52 @@ async function getSystemPrompt() {
   }
 }
 
-// IPC handler to get the system prompt (now includes dynamic tool documentation)
-ipcMain.handle('settings:getSystemPrompt', async () => {
+// Cache for the chat system prompt (refreshed periodically)
+let cachedChatSystemPrompt = null;
+let chatSystemPromptCacheTime = 0;
+const CHAT_SYSTEM_PROMPT_CACHE_TTL = 60000; // Cache for 1 minute
+
+// Fetch chat system prompt from Supabase app_settings
+async function getChatSystemPrompt() {
   try {
+    // Return cached prompt if still valid
+    const now = Date.now();
+    if (cachedChatSystemPrompt && (now - chatSystemPromptCacheTime) < CHAT_SYSTEM_PROMPT_CACHE_TTL) {
+      return cachedChatSystemPrompt;
+    }
+
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'system_prompt_chatta')
+      .single();
+
+    if (error) {
+      console.error('Error fetching chat system prompt from Supabase:', error);
+      return cachedChatSystemPrompt || DEFAULT_CHAT_SYSTEM_PROMPT;
+    }
+
+    if (data && data.value && data.value.prompt) {
+      cachedChatSystemPrompt = data.value.prompt;
+      chatSystemPromptCacheTime = now;
+      console.log('Chat system prompt fetched from Supabase');
+      return cachedChatSystemPrompt;
+    }
+
+    return DEFAULT_CHAT_SYSTEM_PROMPT;
+  } catch (error) {
+    console.error('Error in getChatSystemPrompt:', error);
+    return cachedChatSystemPrompt || DEFAULT_CHAT_SYSTEM_PROMPT;
+  }
+}
+
+// IPC handler to get the system prompt (now includes dynamic tool documentation)
+ipcMain.handle('settings:getSystemPrompt', async (event, { mode = 'jobba' } = {}) => {
+  try {
+    if (mode === 'chatta') {
+      const prompt = await getChatSystemPrompt();
+      return { success: true, prompt };
+    }
     const basePrompt = await getSystemPrompt();
 
     const toolDocs = getToolDocumentation();

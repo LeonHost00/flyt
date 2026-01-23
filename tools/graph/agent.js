@@ -19,17 +19,18 @@ const registry = require('../registry');
  * @param {string} config.model - Model identifier (e.g., 'openai/gpt-4o-mini')
  * @param {Function} config.onToolProgress - Callback for tool progress updates
  * @param {Object} config.context - Execution context (user, cwd, etc.)
+ * @param {boolean} config.useTools - Whether to enable tool use (default: true)
  * @returns {CompiledGraph}
  */
 function createAgent(config) {
-    const { apiKey, model, onToolProgress, context = {} } = config;
+    const { apiKey, model, onToolProgress, context = {}, useTools = true } = config;
 
-    // Load tools from registry
-    const toolDefinitions = registry.getToolDefinitionsForLLM();
-    const toolNames = registry.getToolNames();
+    // Load tools from registry if enabled
+    const toolDefinitions = useTools ? registry.getToolDefinitionsForLLM() : [];
+    const toolNames = useTools ? registry.getToolNames() : [];
 
     // Configure LLM to use OpenRouter
-    const llm = new ChatOpenAI({
+    let llm = new ChatOpenAI({
         model: model,
         apiKey: apiKey,
         configuration: {
@@ -41,7 +42,12 @@ function createAgent(config) {
         },
         temperature: 0.7,
         maxTokens: 4096
-    }).bindTools(toolDefinitions);
+    });
+
+    // Bind tools only if enabled
+    if (useTools && toolDefinitions.length > 0) {
+        llm = llm.bindTools(toolDefinitions);
+    }
 
     // Define the graph state
     const graphState = {
@@ -58,29 +64,54 @@ function createAgent(config) {
             default: () => []
         },
         usage: {
-            value: (prev, next) => next,
-            default: () => null
+            value: (prev, next) => {
+                if (!next) return prev;
+                if (!prev) return next;
+                return {
+                    prompt_tokens: (prev.prompt_tokens || 0) + (next.prompt_tokens || 0),
+                    completion_tokens: (prev.completion_tokens || 0) + (next.completion_tokens || 0),
+                    total_tokens: (prev.total_tokens || 0) + (next.total_tokens || 0)
+                };
+            },
+            default: () => ({ prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 })
         }
     };
 
     // Agent node: calls the LLM
     async function callModel(state) {
-        const { messages, iteration } = state;
+        const { messages, iteration, usage: currentUsage } = state;
 
         console.log(`\n========== AGENT CALL (Iteration ${iteration + 1}) ==========`);
         console.log('Messages count:', messages.length);
-        console.log('Available tools:', toolNames.join(', '));
+        console.log('Use tools:', useTools);
+        if (useTools) console.log('Available tools:', toolNames.join(', '));
 
         const response = await llm.invoke(messages);
+
+        // Extract usage - LangChain often puts it in response_metadata or usage_metadata
+        const usage = response.usage_metadata || response.response_metadata?.usage || response.response_metadata?.tokenUsage || null;
 
         console.log('\n--- LLM Response ---');
         console.log('Content:', response.content?.substring(0, 200) || '[empty]');
         console.log('Tool calls:', response.tool_calls?.length || 0);
+        if (usage) {
+            console.log('Usage:', JSON.stringify(usage));
+        } else {
+            console.log('Usage: [missing]');
+            console.log('Response Metadata Keys:', Object.keys(response.response_metadata || {}));
+        }
+
+        // Standardize usage format for main.js (prompt_tokens, completion_tokens)
+        const standardizedUsage = usage ? {
+            prompt_tokens: usage.prompt_tokens || usage.input_tokens || usage.inputTokens || 0,
+            completion_tokens: usage.completion_tokens || usage.output_tokens || usage.outputTokens || 0,
+            total_tokens: usage.total_tokens || usage.totalTokens || 0
+        } : null;
 
         return {
             messages: [...messages, response],
             iteration: iteration + 1,
-            usage: response.response_metadata?.usage || null
+            usage: standardizedUsage
         };
     }
 
@@ -89,7 +120,7 @@ function createAgent(config) {
         const { messages, toolExecutions } = state;
         const lastMessage = messages[messages.length - 1];
 
-        if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
+        if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0 || !useTools) {
             return state;
         }
 
@@ -154,8 +185,8 @@ function createAgent(config) {
             return 'end';
         }
 
-        // If last message has tool calls, execute them
-        if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+        // If last message has tool calls AND tools are enabled, execute them
+        if (useTools && lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
             return 'tools';
         }
 
@@ -208,16 +239,18 @@ function convertMessages(messages) {
  * @param {string} options.model - Model identifier
  * @param {Function} options.onToolProgress - Progress callback
  * @param {Object} options.context - Execution context
+ * @param {boolean} options.useTools - Whether to enable tools
  * @returns {Promise<Object>} - Agent result
  */
 async function runAgent(options) {
-    const { messages, apiKey, model, onToolProgress, context } = options;
+    const { messages, apiKey, model, onToolProgress, context, useTools = true } = options;
 
     const agent = createAgent({
         apiKey,
         model,
         onToolProgress,
-        context
+        context,
+        useTools
     });
 
     const langchainMessages = convertMessages(messages);
