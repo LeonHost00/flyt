@@ -23,16 +23,18 @@ const registry = require('../registry');
  * @returns {CompiledGraph}
  */
 function createAgent(config) {
-    const { apiKey, model, onToolProgress, context = {}, useTools = true } = config;
+    const { apiKey, model, onToolProgress, onToken, context = {}, useTools = true, allowedTools = null } = config;
+    const allowedToolSet = Array.isArray(allowedTools) ? new Set(allowedTools) : null;
 
     // Load tools from registry if enabled
-    const toolDefinitions = useTools ? registry.getToolDefinitionsForLLM() : [];
-    const toolNames = useTools ? registry.getToolNames() : [];
+    const toolDefinitions = useTools ? registry.getToolDefinitionsForLLM(allowedTools) : [];
+    const toolNames = useTools ? registry.getToolNames(allowedTools) : [];
 
     // Configure LLM to use OpenRouter
     let llm = new ChatOpenAI({
         model: model,
         apiKey: apiKey,
+        streaming: !!onToken,
         configuration: {
             baseURL: 'https://openrouter.ai/api/v1',
             defaultHeaders: {
@@ -86,7 +88,21 @@ function createAgent(config) {
         console.log('Use tools:', useTools);
         if (useTools) console.log('Available tools:', toolNames.join(', '));
 
-        const response = await llm.invoke(messages);
+        let response;
+        if (onToken) {
+            // Use streaming invocation if onToken callback is provided
+            response = await llm.invoke(messages, {
+                callbacks: [
+                    {
+                        handleLLMNewToken(token) {
+                            onToken(token);
+                        },
+                    },
+                ],
+            });
+        } else {
+            response = await llm.invoke(messages);
+        }
 
         // Extract usage - LangChain often puts it in response_metadata or usage_metadata
         const usage = response.usage_metadata || response.response_metadata?.usage || response.response_metadata?.tokenUsage || null;
@@ -134,8 +150,17 @@ function createAgent(config) {
             console.log('Tool:', name);
             console.log('Args:', JSON.stringify(args, null, 2));
 
-            // Execute via registry
-            const result = await registry.executeTool(name, args, context);
+            let result;
+            if (allowedToolSet && !allowedToolSet.has(name)) {
+                result = {
+                    success: false,
+                    output: '',
+                    error: `Tool not allowed: ${name}`
+                };
+            } else {
+                // Execute via registry
+                result = await registry.executeTool(name, args, context);
+            }
 
             console.log('Success:', result.success);
             console.log('Output:', result.output?.substring(0, 200) || '[empty]');
@@ -238,19 +263,22 @@ function convertMessages(messages) {
  * @param {string} options.apiKey - OpenRouter API key
  * @param {string} options.model - Model identifier
  * @param {Function} options.onToolProgress - Progress callback
+ * @param {Function} options.onToken - Streaming token callback
  * @param {Object} options.context - Execution context
  * @param {boolean} options.useTools - Whether to enable tools
  * @returns {Promise<Object>} - Agent result
  */
 async function runAgent(options) {
-    const { messages, apiKey, model, onToolProgress, context, useTools = true } = options;
+    const { messages, apiKey, model, onToolProgress, onToken, context, useTools = true, allowedTools = null } = options;
 
     const agent = createAgent({
         apiKey,
         model,
         onToolProgress,
+        onToken,
         context,
-        useTools
+        useTools,
+        allowedTools
     });
 
     const langchainMessages = convertMessages(messages);
@@ -270,7 +298,8 @@ async function runAgent(options) {
         message: lastAIMessage?.content || '',
         toolExecutions: result.toolExecutions,
         usage: result.usage,
-        iterations: result.iteration
+        iterations: result.iteration,
+        generationId: lastAIMessage?.response_metadata?.id // Extract OpenRouter generation ID
     };
 }
 

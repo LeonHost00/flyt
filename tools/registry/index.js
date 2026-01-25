@@ -10,17 +10,18 @@ const path = require('path');
 
 // Cache for loaded tools
 let toolsCache = null;
+let toolPaths = null;
 
 /**
- * Load all tools from the registry directory
- * @returns {Map<string, Object>} Map of tool name to tool module
+ * Discovery all tools in the registry directory
+ * @returns {Map<string, string>} Map of tool name to file path
  */
-function loadTools() {
-    if (toolsCache) {
-        return toolsCache;
+function discoverTools() {
+    if (toolPaths) {
+        return toolPaths;
     }
 
-    toolsCache = new Map();
+    toolPaths = new Map();
     const registryDir = __dirname;
 
     try {
@@ -34,25 +35,22 @@ function loadTools() {
 
             try {
                 const toolPath = path.join(registryDir, file);
+                // We'll peek at the name without requiring the whole module if possible, 
+                // but since it's exports, we do a light require once to map names
                 const tool = require(toolPath);
 
-                // Validate tool module structure
-                if (!tool.name || !tool.execute) {
-                    console.warn(`Tool ${file} missing required exports (name, execute)`);
-                    continue;
+                if (tool.name) {
+                    toolPaths.set(tool.name, toolPath);
                 }
-
-                toolsCache.set(tool.name, tool);
-                console.log(`Loaded tool: ${tool.name}`);
             } catch (err) {
-                console.error(`Failed to load tool ${file}:`, err.message);
+                console.error(`Failed to discover tool ${file}:`, err.message);
             }
         }
     } catch (err) {
         console.error('Failed to read registry directory:', err.message);
     }
 
-    return toolsCache;
+    return toolPaths;
 }
 
 /**
@@ -60,18 +58,43 @@ function loadTools() {
  * @returns {Array<Object>} Array of tool modules
  */
 function getAllTools() {
-    const tools = loadTools();
-    return Array.from(tools.values());
+    const paths = discoverTools();
+    const tools = [];
+    
+    for (const name of paths.keys()) {
+        const tool = getToolByName(name);
+        if (tool) tools.push(tool);
+    }
+    
+    return tools;
 }
 
 /**
- * Get a tool by name
+ * Get a tool by name (Lazy loaded)
  * @param {string} name - Tool name
  * @returns {Object|null} Tool module or null if not found
  */
 function getToolByName(name) {
-    const tools = loadTools();
-    return tools.get(name) || null;
+    if (!toolsCache) toolsCache = new Map();
+    
+    if (toolsCache.has(name)) {
+        return toolsCache.get(name);
+    }
+
+    const paths = discoverTools();
+    const toolPath = paths.get(name);
+
+    if (toolPath) {
+        try {
+            const tool = require(toolPath);
+            toolsCache.set(name, tool);
+            return tool;
+        } catch (err) {
+            console.error(`Failed to lazy load tool ${name}:`, err.message);
+        }
+    }
+
+    return null;
 }
 
 /**
@@ -107,8 +130,11 @@ async function executeTool(name, params, context = {}) {
  * Get tool definitions in MCP format
  * @returns {Array<Object>} Array of MCP tool definitions
  */
-function getToolDefinitions() {
-    const tools = getAllTools();
+function getToolDefinitions(allowedTools = null) {
+    let tools = getAllTools();
+    if (Array.isArray(allowedTools)) {
+        tools = tools.filter(tool => allowedTools.includes(tool.name));
+    }
     return tools.map(tool => ({
         name: tool.name,
         description: tool.description || '',
@@ -120,8 +146,11 @@ function getToolDefinitions() {
  * Get tool definitions in OpenAI function format (for LLM)
  * @returns {Array<Object>} Array of OpenAI function definitions
  */
-function getToolDefinitionsForLLM() {
-    const tools = getAllTools();
+function getToolDefinitionsForLLM(allowedTools = null) {
+    let tools = getAllTools();
+    if (Array.isArray(allowedTools)) {
+        tools = tools.filter(tool => allowedTools.includes(tool.name));
+    }
     return tools.map(tool => ({
         type: 'function',
         function: {
@@ -136,9 +165,13 @@ function getToolDefinitionsForLLM() {
  * Get list of tool names
  * @returns {Array<string>} Array of tool names
  */
-function getToolNames() {
-    const tools = loadTools();
-    return Array.from(tools.keys());
+function getToolNames(allowedTools = null) {
+    const paths = discoverTools();
+    const names = Array.from(paths.keys());
+    if (!Array.isArray(allowedTools)) {
+        return names;
+    }
+    return names.filter(name => allowedTools.includes(name));
 }
 
 /**
@@ -146,10 +179,12 @@ function getToolNames() {
  */
 function clearCache() {
     toolsCache = null;
+    toolPaths = null;
 }
 
 module.exports = {
-    loadTools,
+    discoverTools,
+    loadTools: discoverTools, // Alias for backward compatibility
     getAllTools,
     getToolByName,
     executeTool,

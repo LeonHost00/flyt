@@ -22,11 +22,22 @@ contextBridge.exposeInMainWorld('authAPI', {
 // Note: Model is controlled server-side via Supabase app_settings
 contextBridge.exposeInMainWorld('llmAPI', {
   chat: (options) => ipcRenderer.invoke('llm:chat', options),
+  transcribe: (audioBuffer, prompt) => ipcRenderer.invoke('llm:transcribe', { audioBuffer, prompt }),
   onToolProgress: (callback) => {
-    ipcRenderer.on('llm:toolProgress', (event, data) => callback(data));
+    const subscription = (event, data) => callback(data);
+    ipcRenderer.on('llm:toolProgress', subscription);
+    return () => ipcRenderer.removeListener('llm:toolProgress', subscription);
+  },
+  onToken: (callback) => {
+    const subscription = (event, token) => callback(token);
+    ipcRenderer.on('llm:token', subscription);
+    return () => ipcRenderer.removeListener('llm:token', subscription);
   },
   removeToolProgressListener: () => {
     ipcRenderer.removeAllListeners('llm:toolProgress');
+  },
+  removeTokenListener: () => {
+    ipcRenderer.removeAllListeners('llm:token');
   }
 });
 

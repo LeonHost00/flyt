@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, desktopCapturer, globalShortcut, Menu, Tray, nativeImage, clipboard, Notification, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, desktopCapturer, globalShortcut, Menu, Tray, nativeImage, clipboard, Notification, safeStorage, protocol } = require('electron');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
@@ -9,6 +9,11 @@ const { createClient } = require('@supabase/supabase-js');
 const Store = require('electron-store');
 const AutoLaunch = require('auto-launch');
 const { autoUpdater } = require('electron-updater');
+
+// Register custom protocol for screenshots to avoid IPC bottlenecks
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'flyt-screenshot', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true } }
+]);
 
 // Configure auto-updater
 autoUpdater.logger = require('console');
@@ -75,9 +80,91 @@ const autoLauncher = new AutoLaunch({
 });
 
 // Snipping tool state
-let snippingWindow = null;
-let capturedScreenshots = [];
+let snippingWindows = []; // Use multiple windows for better multi-monitor support
+let screenshotMap = new Map(); // Store NativeImage objects for the protocol
 let isSnippingToolOpening = false; // Flag to prevent race conditions with rapid shortcut presses
+
+/**
+ * Initialize snipping tool windows (hidden) for all displays
+ * This makes the tool feel instant when the user triggers the shortcut.
+ */
+async function initSnippingWindows() {
+  if (isQuitting) return;
+  
+  // Close existing windows if any
+  snippingWindows.forEach(win => {
+    if (!win.isDestroyed()) {
+      win.removeAllListeners('close');
+      win.close();
+    }
+  });
+  snippingWindows = [];
+
+  const displays = screen.getAllDisplays();
+  
+  snippingWindows = displays.map((display, index) => {
+    const win = new BrowserWindow({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      movable: false,
+      resizable: false,
+      fullscreenable: false,
+      focusable: true,
+      enableLargerThanScreen: true,
+      show: false, // Window starts hidden
+      type: 'toolbar',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+
+    if (process.platform === 'win32') {
+      win.setAlwaysOnTop(true, 'screen-saver');
+    }
+
+    win.loadFile('snipping.html');
+    win.setVisibleOnAllWorkspaces(true);
+
+    // Instead of closing, we intercept the close event to just hide it
+    win.on('close', (e) => {
+      if (!isQuitting) {
+        e.preventDefault();
+        hideSnippingTool();
+      }
+    });
+
+    return win;
+  });
+
+  console.log(`Initialized ${snippingWindows.length} snipping windows`);
+}
+
+/**
+ * Hide all snipping windows and reset state
+ */
+function hideSnippingTool() {
+  snippingWindows.forEach(win => {
+    if (!win.isDestroyed() && win.isVisible()) {
+      win.hide();
+    }
+  });
+  
+  isSnippingToolOpening = false;
+  screenshotMap.clear();
+  
+  if (mainWindow && !isQuitting) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
 
 // Supabase configuration
 const SUPABASE_URL = 'https://cddircpnawvpryttmpel.supabase.co';
@@ -116,7 +203,7 @@ function decryptData(encryptedData) {
   }
 }
 
-let store; // Initialized in app.whenReady()
+let store; // Initialized in app.whenReady() - contains auth
 
 let supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 let mainWindow = null;
@@ -256,114 +343,94 @@ function toggleAppVisibility() {
 
 // Open snipping tool via global shortcut
 async function openSnippingTool() {
-  // Prevent opening snipping tool if already active or currently opening (race condition guard)
-  if (snippingWindow && !snippingWindow.isDestroyed()) {
-    console.log('Snipping tool already active, ignoring shortcut');
+  // Prevent opening snipping tool if already active or currently opening
+  const alreadyActive = snippingWindows.some(win => win.isVisible());
+  if (alreadyActive || isSnippingToolOpening) {
+    console.log('Snipping tool already active or opening, ignoring shortcut');
     return;
   }
 
-  if (isSnippingToolOpening) {
-    console.log('Snipping tool already opening, ignoring rapid shortcut');
-    return;
-  }
-
-  // Set flag immediately to prevent race conditions
   isSnippingToolOpening = true;
 
   try {
     const displays = screen.getAllDisplays();
+    
+    // Check if display count changed, if so re-init windows
+    if (displays.length !== snippingWindows.length) {
+      console.log('Display configuration changed, re-initializing snipping windows...');
+      await initSnippingWindows();
+    }
 
-    // Get combined bounds of all displays
-    const minX = Math.min(...displays.map(d => d.bounds.x));
-    const minY = Math.min(...displays.map(d => d.bounds.y));
-    const maxX = Math.max(...displays.map(d => d.bounds.x + d.bounds.width));
-    const maxY = Math.max(...displays.map(d => d.bounds.y + d.bounds.height));
-
-    const totalWidth = maxX - minX;
-    const totalHeight = maxY - minY;
-
-    // Hide main window temporarily
+    // Hide main window immediately to capture what's behind it
     if (mainWindow) {
       mainWindow.hide();
     }
 
-    // Small delay to ensure window is hidden before capture
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Capture screens
+    const maxMonitorSize = displays.reduce((max, d) => ({
+      width: Math.max(max.width, d.bounds.width * (d.scaleFactor || 1)),
+      height: Math.max(max.height, d.bounds.height * (d.scaleFactor || 1))
+    }), { width: 0, height: 0 });
 
-    // Capture fresh screenshots after hiding
-    // Use native resolution by accounting for scale factor
-    const maxScaleFactor = Math.max(...displays.map(d => d.scaleFactor || 1));
     const freshSources = await desktopCapturer.getSources({
       types: ['screen'],
       thumbnailSize: {
-        width: Math.round(Math.max(...displays.map(d => d.size.width)) * maxScaleFactor),
-        height: Math.round(Math.max(...displays.map(d => d.size.height)) * maxScaleFactor)
+        width: Math.round(maxMonitorSize.width),
+        height: Math.round(maxMonitorSize.height)
       }
     });
 
-    capturedScreenshots = freshSources.map((source, index) => {
-      const display = displays[index] || displays[0];
+    screenshotMap.clear();
+
+    const screenshotsInfo = freshSources.map((source, index) => {
+      const display = displays.find(d => 
+        source.display_id === d.id.toString() || 
+        source.name.includes(d.id.toString())
+      ) || displays[index];
+      
+      const screenshotId = `screen-${index}-${Date.now()}`;
+      screenshotMap.set(screenshotId, source.thumbnail);
+      
       return {
-        id: source.id,
-        name: source.name,
-        thumbnail: source.thumbnail.toDataURL(),
+        id: screenshotId,
+        displayId: display.id,
         bounds: display.bounds,
         scaleFactor: display.scaleFactor
       };
     });
 
-    // Create fullscreen transparent overlay window
-    snippingWindow = new BrowserWindow({
-      x: minX,
-      y: minY,
-      width: totalWidth,
-      height: totalHeight,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      movable: false,
-      fullscreenable: false,
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false
-      }
-    });
-
-    snippingWindow.loadFile('snipping.html');
-    snippingWindow.setVisibleOnAllWorkspaces(true);
-
-    snippingWindow.on('closed', () => {
-      snippingWindow = null;
-      isSnippingToolOpening = false; // Reset flag when window closes
-      if (mainWindow) {
-        mainWindow.show();
-        mainWindow.focus();
-      }
-    });
-
-    // Send screenshot data once window is ready
-    snippingWindow.webContents.on('did-finish-load', () => {
-      snippingWindow.webContents.send('snip:screenshotData', {
-        screenshots: capturedScreenshots,
-        displays: displays.map(d => ({
-          id: d.id,
-          bounds: d.bounds,
-          scaleFactor: d.scaleFactor
-        })),
-        offset: { x: minX, y: minY }
+    // Send content and show windows
+    snippingWindows.forEach((win, index) => {
+      const display = displays[index];
+      const info = screenshotsInfo.find(s => s.displayId === display.id) || screenshotsInfo[index];
+      
+      // Update position just in case
+      win.setBounds({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height
       });
+
+      win.webContents.send('snip:screenshotData', {
+        screenshot: info,
+        allScreenshots: screenshotsInfo,
+        display: {
+          id: display.id,
+          bounds: display.bounds,
+          scaleFactor: display.scaleFactor
+        },
+        offset: { x: display.bounds.x, y: display.bounds.y }
+      });
+
+      win.show();
+      win.focus();
     });
 
-    console.log('Snipping tool opened via shortcut');
+    console.log(`Snipping tool opened on ${displays.length} monitor(s)`);
   } catch (error) {
-    console.error('Snipping tool shortcut error:', error);
-    isSnippingToolOpening = false; // Reset flag on error
-    if (mainWindow) {
-      mainWindow.show();
-    }
+    console.error('Snipping tool error:', error);
+    hideSnippingTool();
   }
 }
 
@@ -605,26 +672,11 @@ async function addTokens(userId, amount, transactionType = 'bonus', description 
 
 // Get model-specific pricing for cost estimation (per 1M tokens)
 // These are fallback values - actual costs come from OpenRouter API
+// Get model-specific pricing for cost estimation (per 1M tokens)
+// Removed hardcoded pricing to reduce bloat and rely on API data
 function getModelPricing(model) {
-  const pricing = {
-    // Google
-    'google/gemini-2.5-flash-preview': { input: 0.15, output: 0.60 },
-    'google/gemini-pro-1.5': { input: 1.25, output: 5.00 },
-    'google/gemini-flash-1.5': { input: 0.075, output: 0.30 },
-    // Zhipu AI
-    'z-ai/glm-4.7': { input: 0.50, output: 0.50 },
-    // OpenAI
-    'openai/gpt-4o-mini': { input: 0.15, output: 0.60 },
-    'openai/gpt-4o': { input: 2.50, output: 10.00 },
-    'openai/gpt-4-turbo': { input: 10.00, output: 30.00 },
-    // Anthropic
-    'anthropic/claude-3.5-sonnet': { input: 3.00, output: 15.00 },
-    'anthropic/claude-3-haiku': { input: 0.25, output: 1.25 },
-    'anthropic/claude-3-opus': { input: 15.00, output: 75.00 },
-  };
-
-  // Return model-specific pricing or a conservative default
-  return pricing[model] || { input: 3.00, output: 15.00 };
+  // We now prefer to get actual cost from OpenRouter API
+  return null;
 }
 
 // Get OpenRouter generation cost from the API (with retry for async cost calculation)
@@ -812,11 +864,11 @@ function createMainWindow() {
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
   const { x: workAreaX, y: workAreaY } = primaryDisplay.workArea;
 
-  // Helper popup dimensions - 38% width, almost full height, right-aligned
+  // Helper popup dimensions - 38% width, full height, right-aligned
   const windowWidth = Math.round(screenWidth * 0.38);
-  const windowHeight = screenHeight - 40; // Leave some margin
-  const windowX = workAreaX + screenWidth - windowWidth - 10; // 10px from right edge
-  const windowY = workAreaY + 20; // 20px from top
+  const windowHeight = screenHeight;
+  const windowX = workAreaX + screenWidth - windowWidth;
+  const windowY = workAreaY;
 
   mainWindow = new BrowserWindow({
     width: windowWidth,
@@ -1217,9 +1269,9 @@ ipcMain.handle('window:setMode', (event, mode) => {
     mainWindow.setMinimumSize(Math.round(screenWidth * 0.30), Math.round(screenHeight * 0.9));
 
     const windowWidth = Math.round(screenWidth * 0.38);
-    const windowHeight = screenHeight - 40;
-    const windowX = workAreaX + screenWidth - windowWidth - 10;
-    const windowY = workAreaY + 20;
+    const windowHeight = screenHeight;
+    const windowX = workAreaX + screenWidth - windowWidth;
+    const windowY = workAreaY;
 
     mainWindow.setBounds({
       x: windowX,
@@ -1245,41 +1297,65 @@ ipcMain.handle('shell:openExternal', async (event, url) => {
 // ===== CHAT HISTORY IPC HANDLERS =====
 // Stores chat history locally using electron-store
 
+// Function to filter out base64 images from messages to save space
+function filterMessagesForStorage(messages) {
+  if (!messages) return [];
+  return messages.map(msg => {
+    // If message has images (base64 or otherwise), remove them for now
+    // as requested by the user, but keep the field for future support.
+    if (msg.images && msg.images.length > 0) {
+      return { ...msg, images: [] }; // Clear images but keep field for future extensibility
+    }
+    return msg;
+  });
+}
+
 // Save a conversation to history
 ipcMain.handle('chatHistory:save', async (event, conversation) => {
   try {
-    // Get existing history
-    const history = store.get('chatHistory', []);
-
-    // Create conversation entry with metadata
-    const entry = {
-      id: conversation.id || Date.now().toString(),
-      title: conversation.title || 'Ny konversation',
-      preview: conversation.preview || '',
-      messages: conversation.messages || [],
-      createdAt: conversation.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messageCount: conversation.messages?.length || 0
-    };
-
-    // Check if conversation already exists (update) or is new (add)
-    const existingIndex = history.findIndex(h => h.id === entry.id);
-    if (existingIndex >= 0) {
-      history[existingIndex] = entry;
-    } else {
-      // Add to beginning of list
-      history.unshift(entry);
+    if (!currentUser) {
+      return { success: false, error: 'Du måste vara inloggad för att spara historik.' };
     }
 
-    // Limit history to 100 conversations to prevent excessive storage
-    const limitedHistory = history.slice(0, 100);
+    const messagesForStorage = filterMessagesForStorage(conversation.messages || []);
+    
+    // Create conversation entry with metadata
+    const entry = {
+      user_id: currentUser.id,
+      title: conversation.title || 'Ny konversation',
+      preview: conversation.preview || '',
+      messages: messagesForStorage,
+      updated_at: new Date().toISOString()
+    };
 
-    store.set('chatHistory', limitedHistory);
-    console.log(`Chat history saved: ${entry.id} - ${entry.title}`);
+    let result;
+    // Check if ID is a valid UUID format (if so, it's an existing DB entry)
+    const isUuid = conversation.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversation.id);
 
-    return { success: true, id: entry.id };
+    if (isUuid) {
+      // Update existing conversation
+      result = await supabase
+        .from('conversations')
+        .update(entry)
+        .eq('id', conversation.id)
+        .eq('user_id', currentUser.id)
+        .select()
+        .single();
+    } else {
+      // Create new conversation
+      result = await supabase
+        .from('conversations')
+        .insert([entry])
+        .select()
+        .single();
+    }
+
+    if (result.error) throw result.error;
+
+    console.log(`Chat history saved to Supabase: ${result.data.id} - ${result.data.title}`);
+    return { success: true, id: result.data.id };
   } catch (error) {
-    console.error('Error saving chat history:', error);
+    console.error('Error saving chat history to Supabase:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1287,16 +1363,31 @@ ipcMain.handle('chatHistory:save', async (event, conversation) => {
 // Load a specific conversation from history
 ipcMain.handle('chatHistory:load', async (event, id) => {
   try {
-    const history = store.get('chatHistory', []);
-    const conversation = history.find(h => h.id === id);
+    if (!currentUser) throw new Error('Not authenticated');
 
-    if (!conversation) {
-      return { success: false, error: 'Konversation hittades inte' };
-    }
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', currentUser.id)
+      .single();
+
+    if (error) throw error;
+    if (!data) return { success: false, error: 'Konversation hittades inte' };
+
+    // Map DB fields back to what the frontend expects
+    const conversation = {
+      id: data.id,
+      title: data.title,
+      preview: data.preview,
+      messages: data.messages,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
 
     return { success: true, conversation };
   } catch (error) {
-    console.error('Error loading chat history:', error);
+    console.error('Error loading chat history from Supabase:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1304,15 +1395,20 @@ ipcMain.handle('chatHistory:load', async (event, id) => {
 // Delete a conversation from history
 ipcMain.handle('chatHistory:delete', async (event, id) => {
   try {
-    const history = store.get('chatHistory', []);
-    const filteredHistory = history.filter(h => h.id !== id);
+    if (!currentUser) throw new Error('Not authenticated');
 
-    store.set('chatHistory', filteredHistory);
-    console.log(`Chat history deleted: ${id}`);
+    const { error } = await supabase
+      .from('conversations')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', currentUser.id);
+
+    if (error) throw error;
+    console.log(`Chat history deleted from Supabase: ${id}`);
 
     return { success: true };
   } catch (error) {
-    console.error('Error deleting chat history:', error);
+    console.error('Error deleting chat history from Supabase:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1320,21 +1416,32 @@ ipcMain.handle('chatHistory:delete', async (event, id) => {
 // List all conversations in history (with metadata only, not full messages)
 ipcMain.handle('chatHistory:list', async () => {
   try {
-    const history = store.get('chatHistory', []);
+    if (!currentUser) {
+      return { success: true, conversations: [] }; // Return empty list if not logged in
+    }
+
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('id, title, preview, created_at, updated_at, messages')
+      .eq('user_id', currentUser.id)
+      .order('updated_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
 
     // Return only metadata for the list view
-    const summaries = history.map(h => ({
+    const summaries = data.map(h => ({
       id: h.id,
       title: h.title,
       preview: h.preview,
-      createdAt: h.createdAt,
-      updatedAt: h.updatedAt,
-      messageCount: h.messageCount
+      createdAt: h.created_at,
+      updatedAt: h.updated_at,
+      messageCount: h.messages?.length || 0
     }));
 
     return { success: true, conversations: summaries };
   } catch (error) {
-    console.error('Error listing chat history:', error);
+    console.error('Error listing chat history from Supabase:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1342,11 +1449,18 @@ ipcMain.handle('chatHistory:list', async () => {
 // Clear all chat history
 ipcMain.handle('chatHistory:clearAll', async () => {
   try {
-    store.set('chatHistory', []);
-    console.log('All chat history cleared');
+    if (!currentUser) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('conversations')
+      .delete()
+      .eq('user_id', currentUser.id);
+
+    if (error) throw error;
+    console.log('All chat history cleared from Supabase');
     return { success: true };
   } catch (error) {
-    console.error('Error clearing chat history:', error);
+    console.error('Error clearing chat history from Supabase:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1558,18 +1672,25 @@ ipcMain.handle('llm:chat', async (event, { messages, mode = 'jobba' }) => {
       return { success: false, error: 'Du måste vara inloggad för att använda AI-assistenten.' };
     }
 
-    // Fetch the active model from Supabase
-    const model = await getActiveModel();
+    const allowedTools = mode === 'chatta' ? ['brave_search'] : null;
+    const useTools = mode === 'jobba' || mode === 'chatta';
+    const needsBraveSearch = !allowedTools || allowedTools.includes('brave_search');
+
+    // Parallelize pre-flight checks to reduce latency
+    console.log('Fetching pre-flight requirements in parallel...');
+    const [model, apiKey, tokenData, braveApiKey] = await Promise.all([
+      getActiveModel(),
+      getOpenRouterApiKey(),
+      getUserTokens(currentUser.id),
+      needsBraveSearch ? getBraveSearchApiKey() : Promise.resolve(null)
+    ]);
+
     console.log('Using model from Supabase:', model);
 
-    // Fetch the OpenRouter API key from Supabase
-    const apiKey = await getOpenRouterApiKey();
     if (!apiKey) {
       return { success: false, error: 'OpenRouter API-nyckel kunde inte hämtas. Kontakta support.' };
     }
 
-    // Check token balance before making request
-    const tokenData = await getUserTokens(currentUser.id);
     if (!tokenData) {
       return { success: false, error: 'Kunde inte verifiera tokensaldo. Försök igen.' };
     }
@@ -1592,18 +1713,26 @@ ipcMain.handle('llm:chat', async (event, { messages, mode = 'jobba' }) => {
       messages,
       apiKey,
       model,
-      useTools: mode === 'jobba',
+      useTools,
+      allowedTools,
       context: {
         user: currentUser,
         cwd: os.homedir(),
-        braveApiKey: await getBraveSearchApiKey(),
+        braveApiKey: braveApiKey,
+        openRouterApiKey: apiKey,
         askUser: (prompt, type, options) => askUser(mainWindow, prompt, type, options),
         presentInfo: (data) => presentInfo(mainWindow, data)
       },
       onToolProgress: (progress) => {
         // Send progress update to renderer
-        if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('llm:toolProgress', progress);
+        if (event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('llm:toolProgress', progress);
+        }
+      },
+      onToken: (token) => {
+        // Send streaming token to renderer
+        if (event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('llm:token', token);
         }
       }
     });
@@ -1612,14 +1741,27 @@ ipcMain.handle('llm:chat', async (event, { messages, mode = 'jobba' }) => {
     console.log('Iterations:', result.iterations);
     console.log('Tool executions:', result.toolExecutions?.length || 0);
 
-    // Estimate cost (simplified - actual cost comes from OpenRouter)
+    // Get actual cost from OpenRouter
     let totalCost = 0;
-    if (result.usage) {
+    
+    if (result.generationId) {
+      console.log(`Fetching actual cost for generation ${result.generationId}...`);
+      const actualCost = await getOpenRouterGenerationCost(result.generationId);
+      if (actualCost !== null) {
+        totalCost = actualCost;
+      }
+    }
+    
+    // Fallback to token estimation only if API cost fails (optional, as user wants to rely on API)
+    if (totalCost === 0 && result.usage) {
       const promptTokens = result.usage.prompt_tokens || 0;
       const completionTokens = result.usage.completion_tokens || 0;
       const modelPricing = getModelPricing(model);
-      totalCost = (promptTokens * modelPricing.input / 1000000) +
-        (completionTokens * modelPricing.output / 1000000);
+      
+      if (modelPricing) {
+        totalCost = (promptTokens * modelPricing.input / 1000000) +
+          (completionTokens * modelPricing.output / 1000000);
+      }
     }
 
     // Deduct tokens
@@ -1652,6 +1794,50 @@ ipcMain.handle('llm:chat', async (event, { messages, mode = 'jobba' }) => {
 
   } catch (error) {
     console.error('LLM chat error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Transcription handler using Groq Whisper
+ipcMain.handle('llm:transcribe', async (event, { audioBuffer, prompt }) => {
+  try {
+    if (!currentUser) {
+      return { success: false, error: 'Du måste vara inloggad för att använda röstinmatning.' };
+    }
+
+    const GROQ_API_KEY = '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';
+    
+    // Create form data for Groq API
+    const formData = new FormData();
+    const blob = new Blob([audioBuffer], { type: 'audio/webm' });
+    formData.append('file', blob, 'recording.webm');
+    formData.append('model', 'whisper-large-v3-turbo');
+    
+    // Add prompt if provided (helps with specific vocabulary and language focus)
+    if (prompt) {
+      formData.append('prompt', prompt);
+    }
+
+    console.log('Sending audio to Groq Whisper...');
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Groq API Error:', errorData);
+      throw new Error(errorData.error?.message || `Groq API error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('Transcription successful');
+    return { success: true, text: result.text };
+  } catch (error) {
+    console.error('Transcription error:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1869,7 +2055,10 @@ ipcMain.handle('settings:getSystemPrompt', async (event, { mode = 'jobba' } = {}
   try {
     if (mode === 'chatta') {
       const prompt = await getChatSystemPrompt();
-      return { success: true, prompt };
+      const toolDocs = getToolDocumentation(['brave_search']);
+      const searchGuidance = 'Use brave_search for any question that may require up-to-date or factual information. Always cite sources from search results.';
+      const fullPrompt = `${prompt}\n\n${searchGuidance}\n\n${toolDocs}`.trim();
+      return { success: true, prompt: fullPrompt };
     }
     const basePrompt = await getSystemPrompt();
 
@@ -2377,8 +2566,8 @@ ipcMain.handle('snip:captureScreens', async () => {
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
       thumbnailSize: {
-        width: Math.max(...displays.map(d => d.size.width * d.scaleFactor)),
-        height: Math.max(...displays.map(d => d.size.height * d.scaleFactor))
+        width: Math.max(...displays.map(d => d.size.width * (d.scaleFactor || 2))),
+        height: Math.max(...displays.map(d => d.size.height * (d.scaleFactor || 2)))
       }
     });
 
@@ -2395,7 +2584,7 @@ ipcMain.handle('snip:captureScreens', async () => {
         id: source.id,
         name: source.name,
         displayId: source.display_id || display.id.toString(),
-        thumbnail: source.thumbnail.toDataURL(),
+        thumbnail: source.thumbnail.toJPEG(85), // Faster than PNG
         bounds: display.bounds,
         scaleFactor: display.scaleFactor
       });
@@ -2421,29 +2610,17 @@ ipcMain.handle('snip:openOverlay', async () => {
 
 // Cancel snipping
 ipcMain.handle('snip:cancel', async () => {
-  if (snippingWindow) {
-    snippingWindow.close();
-    snippingWindow = null;
-  }
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
-  }
+  hideSnippingTool();
   return { success: true };
 });
 
 // Complete snipping with selected region
 ipcMain.handle('snip:complete', async (event, { imageData, region }) => {
   try {
-    if (snippingWindow) {
-      snippingWindow.close();
-      snippingWindow = null;
-    }
+    // Hide all snipping windows and reset state
+    hideSnippingTool();
 
     if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-
       // Send the captured snip to the main window
       mainWindow.webContents.send('snip:captured', {
         imageData,
@@ -2502,6 +2679,23 @@ app.on('open-url', (event, url) => {
 app.whenReady().then(async () => {
   console.log('=== App Starting ===');
 
+  // Register screenshot protocol for low-latency image loading
+  protocol.handle('flyt-screenshot', (request) => {
+    try {
+      const url = new URL(request.url);
+      const assetId = url.host + url.pathname.replace(/\/$/, '');
+      const img = screenshotMap.get(assetId);
+      
+      if (img) {
+        // img is a NativeImage. toPNG() is efficient.
+        return new Response(img.toPNG());
+      }
+    } catch (e) {
+      console.error('Protocol handler error:', e);
+    }
+    return new Response('Not Found', { status: 404 });
+  });
+
   // Initialize the encrypted store (must be after app is ready)
   const fs = require('fs'); // Added for store cleanup
 
@@ -2511,17 +2705,25 @@ app.whenReady().then(async () => {
     // Test read to ensure validity (in case of old encrypted file)
     store.get('__test__');
   } catch (error) {
-    console.log('Could not load store (likely old encryption), resetting...');
-    const storePath = path.join(app.getPath('userData'), 'auth-store.json');
-    try {
-      if (fs.existsSync(storePath)) {
-        fs.unlinkSync(storePath);
-        console.log('Old store file deleted');
-      }
-    } catch (e) {
-      console.error('Error deleting old store:', e);
-    }
+    console.warn('Could not load auth-store (likely encryption mismatch), attempting migration...');
+    
+    // Instead of deleting the whole file, we try to just reset specific auth keys if possible,
+    // or at least log that we are resetting only the auth portion.
+    // Future improvement: Separate history and auth into different store files.
     store = new Store({ name: 'auth-store' });
+    try {
+        store.delete('auth_secure');
+        store.delete('auth');
+    } catch (e) {
+        // If even delete fails, we might need a reset
+        const storePath = path.join(app.getPath('userData'), 'auth-store.json');
+        if (fs.existsSync(storePath)) {
+            // Backup before delete
+            fs.copyFileSync(storePath, storePath + '.bak');
+            fs.unlinkSync(storePath);
+        }
+        store = new Store({ name: 'auth-store' });
+    }
   }
 
   // Set up auth listener to keep session in sync
@@ -2536,6 +2738,14 @@ app.whenReady().then(async () => {
 
   // Create system tray for background operation
   createTray();
+
+  // Initialize snipping tool windows (hidden) for faster access
+  await initSnippingWindows();
+
+  // Listen for display changes to update snipping windows
+  screen.on('display-added', () => initSnippingWindows());
+  screen.on('display-removed', () => initSnippingWindows());
+  screen.on('display-metrics-changed', () => initSnippingWindows());
 
   // Enable auto-launch by default (start with Windows)
   try {

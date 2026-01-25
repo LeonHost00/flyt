@@ -71,7 +71,6 @@ async function execute(params, context = {}) {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
-                'Accept-Encoding': 'gzip',
                 'X-Subscription-Token': apiKey
             }
         };

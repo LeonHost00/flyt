@@ -82,11 +82,18 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            Historik
                         </button>
                         <div class="history-panel" id="history-panel">
                             <div class="history-panel-header">
-                                <h4>Konversationer</h4>
+                                <div class="history-panel-header-left">
+                                    <button class="history-close-btn" id="history-close-btn" title="Stäng historik">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                    <h4>Konversationer</h4>
+                                </div>
                                 <button class="history-clear-all-btn" id="history-clear-all-btn">Rensa alla</button>
                             </div>
                             <div class="history-list" id="history-list">
@@ -98,14 +105,12 @@
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
-                        Ny konversation
                     </button>
                     <div class="profile-menu-container" id="profile-menu-container">
                         <div class="user-avatar" id="user-avatar" title="Visa profilalternativ">?</div>
                         <div class="profile-dropdown" id="profile-dropdown">
                             <div class="profile-dropdown-info">
                                 <div class="token-balance" id="token-balance" title="Ditt tokensaldo">
-                                    <span class="token-icon">ðŸª™</span>
                                     <span class="token-count" id="token-count">---</span>
                                     <span class="token-label">tokens</span>
                                 </div>
@@ -146,6 +151,18 @@
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                    </button>
+                    <button class="mic-btn" id="mic-btn" title="Röstinmatning (Groq Whisper)">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 10v2a7 7 0 01-14 0v-2" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 19v4" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 23h8" />
                         </svg>
                     </button>
                     <input type="file" id="file-input" accept="image/*,.pdf,.txt,.md,.js,.ts,.py,.json,.html,.css"

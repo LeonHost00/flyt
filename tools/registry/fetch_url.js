@@ -4,7 +4,6 @@
  * Fetches a URL and converts HTML to Markdown using axios and turndown.
  */
 
-const axios = require('axios');
 const TurndownService = require('turndown');
 
 const name = 'fetch_url';
@@ -62,25 +61,33 @@ async function execute(params, context = {}) {
     }
 
     try {
-        const response = await axios.get(url, {
-            timeout,
+        const response = await fetch(url, {
+            signal: AbortSignal.timeout(timeout),
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5'
             },
-            maxRedirects: 5,
-            validateStatus: (status) => status < 400
+            redirect: 'follow'
         });
 
-        const contentType = response.headers['content-type'] || '';
+        if (!response.ok) {
+            return {
+                success: false,
+                output: '',
+                error: `HTTP Error ${response.status}: ${response.statusText}`
+            };
+        }
+
+        const contentType = response.headers.get('content-type') || '';
 
         // Handle non-HTML responses
         if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
             // For JSON, return formatted
             if (contentType.includes('application/json')) {
+                const data = await response.json();
                 let output = `Content-Type: ${contentType}\n${'─'.repeat(40)}\n`;
-                output += JSON.stringify(response.data, null, 2);
+                output += JSON.stringify(data, null, 2);
 
                 const maxLength = 4000;
                 if (output.length > maxLength) {
@@ -92,7 +99,8 @@ async function execute(params, context = {}) {
 
             // For plain text
             if (contentType.includes('text/plain')) {
-                let output = response.data.toString();
+                let data = await response.text();
+                let output = data.toString();
                 const maxLength = 4000;
                 if (output.length > maxLength) {
                     output = output.substring(0, maxLength) + '\n...[truncated]';
@@ -108,7 +116,7 @@ async function execute(params, context = {}) {
         }
 
         // Convert HTML to Markdown
-        const html = response.data;
+        const html = await response.text();
         let markdown = turndown.turndown(html);
 
         // Clean up the markdown
@@ -135,11 +143,9 @@ async function execute(params, context = {}) {
     } catch (error) {
         let errorMessage = error.message;
 
-        if (error.response) {
-            errorMessage = `HTTP ${error.response.status}: ${error.response.statusText}`;
-        } else if (error.code === 'ECONNABORTED') {
+        if (error.name === 'TimeoutError' || error.name === 'AbortError') {
             errorMessage = `Request timed out after ${timeout}ms`;
-        } else if (error.code === 'ENOTFOUND') {
+        } else if (error.message.includes('getaddrinfo ENOTFOUND')) {
             errorMessage = `Could not resolve host: ${new URL(url).hostname}`;
         }
 

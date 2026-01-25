@@ -18,10 +18,21 @@ const { runAgent, createAgent, convertMessages } = require('./graph/agent');
  * Get tool documentation for system prompt
  * Dynamically generates from registry
  */
-function getToolDocumentation() {
-    const tools = registry.getAllTools();
+/**
+ * Get documentation for available tools
+ * @param {Array<string>} [allowedTools] - Optional list of allowed tool names
+ * @returns {string} Markdown documentation
+ */
+function getToolDocumentation(allowedTools = null) {
+    let tools = registry.getAllTools();
+    
+    if (allowedTools && Array.isArray(allowedTools)) {
+        tools = tools.filter(tool => allowedTools.includes(tool.name));
+    }
 
-    let doc = `## Available Tools\n\nYou have access to the following tools. Call them using JSON format.\n\n`;
+    if (tools.length === 0) return '';
+
+    let doc = `## Available Tools\n\nYou have access to the following tool${tools.length > 1 ? 's' : ''}. Call them using JSON format.\n\n`;
 
     for (const tool of tools) {
         doc += `### ${tool.name}\n`;

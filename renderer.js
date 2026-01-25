@@ -10,11 +10,15 @@ window.addEventListener('unhandledrejection', function (event) {
 });
 
 // Initialize marked with KaTeX extension
-marked.use(markedKatex({
-    throwOnError: false,
-    displayMode: false
-}));
-console.log('Marked initialized with KaTeX extension');
+if (typeof markedKatex !== 'undefined') {
+    marked.use(markedKatex({
+        throwOnError: false,
+        nonStandard: true // Allow $...$ even without spaces
+    }));
+    console.log('Marked initialized with KaTeX extension');
+} else {
+    console.warn('markedKatex not found, math rendering might be limited');
+}
 
 // DOM Elements
 const loadingOverlay = document.getElementById('loading-overlay');
@@ -35,6 +39,7 @@ const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
 const clearChatBtn = document.getElementById('clear-chat-btn');
+const micBtn = document.getElementById('mic-btn');
 
 // Snipping Elements
 const snipBtn = document.getElementById('snip-btn');
@@ -47,7 +52,7 @@ const modalCloseBtn = document.getElementById('modal-close-btn');
 function validateDOMElements() {
     const criticalElements = {
         loadingOverlay, userAvatar, chatMessages, chatInput, chatSendBtn,
-        attachedImagesContainer, tokenBalance, tokenCount
+        attachedImagesContainer, tokenBalance, tokenCount, micBtn
     };
     
     for (const [name, element] of Object.entries(criticalElements)) {
@@ -85,6 +90,17 @@ let systemPromptFromServer = null;
 let currentConversationId = null;
 let isConversationSaved = false;
 
+// Transcription state
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let initialInputText = "";
+let isTranscribing = false;
+let lastTranscription = "";
+
+// Streaming state (used to control tool activity UI)
+let isStreaming = false;
+
 // Initialize the app
 async function initialize() {
     // Validate DOM elements first
@@ -105,13 +121,15 @@ async function initialize() {
             }
         });
 
-        // Get current user info
-        const result = await window.authAPI.getUser();
+        // Parallelize initial state fetching to reduce startup latency
+        const [authResult] = await Promise.all([
+            window.authAPI.getUser()
+        ]);
 
-        if (result.success && result.user) {
-            displayUserInfo(result.user);
-            // Fetch token balance
-            await fetchTokenBalance();
+        if (authResult.success && authResult.user) {
+            displayUserInfo(authResult.user);
+            // Fetch token balance in background without blocking initial render
+            fetchTokenBalance();
         } else {
             // No valid session, redirect to auth
             console.log('No valid session found');
@@ -262,11 +280,11 @@ async function loadSystemPrompt() {
 // Initialize chat functionality
 async function initializeChat() {
     try {
-        // Load system prompt from Supabase
-        await loadSystemPrompt();
-
-        // Load system information
-        await loadSystemInfo();
+        // Parallelize loading of system prompt and system information to reduce latency
+        await Promise.all([
+            loadSystemPrompt(),
+            loadSystemInfo()
+        ]);
 
         // Set up tool progress listener for the new multi-tool system
         window.llmAPI.onToolProgress((data) => {
@@ -317,7 +335,8 @@ function buildMinimalSystemContext() {
     return `## System
 OS: ${systemInfo.osType} ${systemInfo.osRelease}, User: ${systemInfo.username}, Shell: ${systemInfo.shell}
 Dev: ${devTools || 'none'}
-Time: ${systemInfo.currentTime} (${systemInfo.timezone})`;
+Time: ${systemInfo.currentTime} (${systemInfo.timezone})
+Math: Always use LaTeX if possible. Use $$ for blocks and $ for inline. Matrices: use bmatrix/pmatrix with & and \\\\.`;
 }
 
 // Build the full system prompt with system info
@@ -325,6 +344,10 @@ function buildSystemPrompt() {
     const customPrompt = customPromptValue.trim() || systemPromptFromServer;
 
     if (!systemInfo) {
+        return customPrompt;
+    }
+
+    if (currentMode === 'chatta') {
         return customPrompt;
     }
 
@@ -352,13 +375,62 @@ function renderMath(latex, displayMode = false) {
         : `<span class="math-fallback">${escapeHtml(latex)}</span>`;
 }
 
+// Helper to clean up LaTeX math delimiters before parsing
+function preprocessMath(content) {
+    if (!content) return '';
+
+    // Clean up invisible characters that some LLMs might output and break regex
+    let processed = content.replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+
+    // 1. Fix common AI mistake: single \ at end of line in LaTeX instead of \\
+    // Look for a backslash followed by a newline, NOT preceded by another backslash
+    processed = processed.replace(/(^|[^\\])\\\s*\n/g, '$1\\\\ \n');
+
+    // 2. Un-codeblock math if it's clearly LaTeX used within a code block
+    processed = processed.replace(/```(?:latex|math)?\s*?\n([\s\S]*?\\begin\{[\s\S]*?)\n```/g, '\n$$\n$1\n$$\n');
+
+    // 3. Convert standard LaTeX delimiters \[ \] and \( \) to simpler $ and $$
+    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, p1) => `\n$$\n${p1.trim()}\n$$\n`);
+    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, p1) => `$${p1.trim()}$`);
+
+    // 4. Ensure common LaTeX environments are wrapped in $$ if they aren't
+    const envs = ['matrix', 'pmatrix', 'bmatrix', 'vmatrix', 'Vmatrix', 'array', 'align', 'equation', 'gather', 'split', 'aligned'];
+    envs.forEach(env => {
+        const regex = new RegExp(`\\\\begin\\{${env}\\}[\\s\\S]*?\\\\end\\{${env}\\}`, 'g');
+        processed = processed.replace(regex, (match, offset) => {
+            const before = processed.substring(Math.max(0, offset - 10), offset);
+            if (before.includes('$') || before.includes('```')) return match;
+            return `\n$$\n${match}\n$$\n`;
+        });
+    });
+
+    // 5. Fix common AI mistake: using commas instead of & in matrices
+    // Only apply this inside matrix environments and only if & is missing
+    processed = processed.replace(/(\\begin\{(?:[pbvV]?matrix|array)\})([\s\S]*?)(\\end\{(?:[pbvV]?matrix|array)\})/g, (match, start, body, end) => {
+        if (!body.includes('&')) {
+            // Replace commas with &
+            const fixedBody = body.replace(/,\s*/g, ' & ');
+            return start + fixedBody + end;
+        }
+        return match;
+    });
+
+    // 6. Normalize block math to ensure it has newlines (required by some plugins)
+    processed = processed.replace(/\$\$(?![\n\r])([\s\S]*?)(?![\n\r])\$\$/g, '\n$$\n$1\n$$\n');
+
+    return processed;
+}
+
 // Format message content with code blocks and math
 function formatMessageContent(content) {
     if (!content) return '';
 
     try {
+        // Pre-process math delimiters for consistent rendering
+        const preprocessed = preprocessMath(content);
+        
         const parseOptions = { breaks: true, gfm: true };
-        let processed = marked.parse(content, parseOptions);
+        let processed = marked.parse(preprocessed, parseOptions);
 
         if (processed) {
             // Post-process links to use our external link system
@@ -405,10 +477,11 @@ function addMessageToChat(role, content) {
     if (role === 'user') {
         const avatarUrl = currentUserData?.user_metadata?.avatar_url;
         if (avatarUrl) {
-            avatarHtml = `<img src="${avatarUrl}" alt="U" class="avatar-image">`;
+            avatarHtml = `<img src="${avatarUrl}" alt="Avatar" class="avatar-image">`;
             avatarClass = 'avatar-custom';
         } else {
-            avatarHtml = 'U';
+            // Use same initials as top-right profile avatar
+            avatarHtml = currentUserData?.email ? currentUserData.email.charAt(0).toUpperCase() : 'U';
         }
     } else {
         // AI logo
@@ -422,6 +495,11 @@ function addMessageToChat(role, content) {
 
     chatMessages.appendChild(messageDiv);
     smoothScrollToBottom();
+
+    return {
+        element: messageDiv,
+        contentElement: messageDiv.querySelector('.message-content')
+    };
 }
 
 // Show typing indicator - now uses the unified cube animation
@@ -448,7 +526,8 @@ const TOOL_DISPLAY = {
     system_info: { name: 'Systeminformation', verb: 'Hämtar systeminfo' },
     env_var: { name: 'Miljövariabler', verb: 'Hämtar miljövariabler' },
     wait: { name: 'Vänta', verb: 'Väntar' },
-    convert_image: { name: 'Konvertera bild', verb: 'Konverterar bild' }
+    convert_image: { name: 'Konvertera bild', verb: 'Konverterar bild' },
+    brave_search: { name: 'Sök på webben', verb: 'Söker på webben' }
 };
 
 // Get tool display info
@@ -546,7 +625,10 @@ function stopThinkingTextCycle() {
 
 // Show or update the thinking indicator
 function showThinkingIndicator(actionText = null, toolMode = false) {
-    removeTypingIndicator();
+    const typingDiv = document.getElementById('typing-indicator');
+    if (typingDiv) {
+        typingDiv.remove();
+    }
 
     isToolMode = toolMode || toolExecutionHistory.length > 0;
     const displayText = actionText || getRandomThinkingText();
@@ -587,40 +669,44 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
         cubeLoader.classList.toggle('tool-mode', isToolMode);
     }
 
+    // Activity toggle lives in the header to avoid layout shifts below
+    const headerElement = thinkingDiv.querySelector('.thinking-header');
+    let activityToggle = headerElement?.querySelector('.thinking-activity-toggle');
+
     // Update history/details
     const detailsContainer = thinkingDiv.querySelector('.thinking-details-container');
+    const showActivityUI = !isStreaming && toolExecutionHistory.length > 0;
     if (detailsContainer) {
-        if (toolExecutionHistory.length > 0) {
+        if (showActivityUI) {
             let detailsElement = detailsContainer.querySelector('.thinking-details');
 
             if (!detailsElement) {
                 detailsElement = document.createElement('details');
                 detailsElement.className = 'thinking-details';
+                const summary = document.createElement('summary');
+                summary.className = 'thinking-details-summary';
+                detailsElement.appendChild(summary);
                 detailsContainer.appendChild(detailsElement);
             }
 
-            const headerHtml = `<summary>Visa aktivitet (${toolExecutionHistory.length})</summary>`;
-            const historyHtml = `
-                <div class="thinking-history">
-                    ${toolExecutionHistory.map(t => `
-                        <div class="thinking-history-item ${t.success === true ? 'success' : t.success === false ? 'error' : 'pending'}">
-                            <span class="history-status">${t.success === true ? '✓' : t.success === false ? '✗' : '⋯'}</span>
-                            <span class="history-action">${escapeHtml(t.verb)}</span>
-                            ${t.param ? `<span class="history-param">${escapeHtml(t.param)}</span>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            // Ensure any legacy summary is removed to prevent extra line height
+            const legacySummary = detailsElement.querySelector('summary:not(.thinking-details-summary)');
+            if (legacySummary) legacySummary.remove();
 
-            // Granular update: only update summary text if count changed
-            const summary = detailsElement.querySelector('summary');
-            const expectedSummary = `Visa aktivitet (${toolExecutionHistory.length})`;
-            if (!summary || summary.textContent !== expectedSummary) {
-                if (!summary) {
-                    detailsElement.insertAdjacentHTML('afterbegin', headerHtml);
-                } else {
-                    summary.textContent = expectedSummary;
+            if (headerElement) {
+                if (!activityToggle) {
+                    activityToggle = document.createElement('button');
+                    activityToggle.type = 'button';
+                    activityToggle.className = 'thinking-activity-toggle';
+                    headerElement.appendChild(activityToggle);
                 }
+
+                activityToggle.textContent = `Aktivitet (${toolExecutionHistory.length})`;
+                activityToggle.classList.toggle('open', detailsElement.open);
+                activityToggle.onclick = () => {
+                    detailsElement.open = !detailsElement.open;
+                    activityToggle.classList.toggle('open', detailsElement.open);
+                };
             }
 
             // Granular update: sync history list children with toolExecutionHistory (Issue 2)
@@ -656,6 +742,7 @@ function showThinkingIndicator(actionText = null, toolMode = false) {
             });
         } else {
             detailsContainer.innerHTML = '';
+            if (activityToggle) activityToggle.remove();
         }
     }
 
@@ -800,12 +887,211 @@ async function sendMessage() {
     snipBtn.disabled = true;
 
     // Show typing indicator
+    isStreaming = true;
     showTypingIndicator();
+
+    // Set up streaming token handler
+    let currentAssistantMessage = '';
+    let currentReasoning = '';
+    let assistantMessageElement = null;
+    let assistantContentElement = null;
+    let assistantReasoningElement = null;
+    let assistantSourcesElement = null; // This will hold the chip container
+    let assistantSourcesToggle = null;
+    let assistantSourcesContainer = null;
+    let assistantMainTextElement = null;
+    let discoveredSources = new Set();
+    let pendingSources = new Map();
+
+    function queueSource(url, domain) {
+        if (!pendingSources.has(url)) {
+            pendingSources.set(url, domain);
+        }
+    }
+
+    function renderSourcesContainer() {
+        if (!assistantContentElement || !assistantMainTextElement) return;
+        if (pendingSources.size === 0) return;
+
+        if (!assistantSourcesContainer) {
+            const container = document.createElement('div');
+            container.className = 'message-sources-container';
+
+            assistantSourcesElement = document.createElement('div');
+            assistantSourcesElement.className = 'message-sources collapsed';
+            container.appendChild(assistantSourcesElement);
+
+            const toggle = document.createElement('button');
+            toggle.className = 'sources-toggle';
+            toggle.style.display = 'none';
+            toggle.innerHTML = `
+                <span>Visa fler källor</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <path d="M6 9l6 6 6-6"></path>
+                </svg>
+            `;
+            toggle.onclick = () => {
+                const isCollapsed = assistantSourcesElement.classList.toggle('collapsed');
+                toggle.classList.toggle('expanded', !isCollapsed);
+                toggle.querySelector('span').textContent = isCollapsed ? 'Visa fler källor' : 'Visa färre';
+            };
+            container.appendChild(toggle);
+            assistantSourcesToggle = toggle;
+            assistantSourcesContainer = container;
+
+            assistantMainTextElement.after(container);
+        } else {
+            assistantMainTextElement.after(assistantSourcesContainer);
+        }
+
+        pendingSources.forEach((domain, url) => {
+            if (assistantSourcesElement.querySelector(`[data-url="${url}"]`)) return;
+
+            const chip = document.createElement('a');
+            chip.className = 'message-source-chip';
+            chip.href = '#';
+            chip.dataset.url = url;
+            chip.onclick = (e) => {
+                e.preventDefault();
+                window.shellAPI.openExternal(url);
+            };
+            chip.innerHTML = `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                ${domain}
+            `;
+            assistantSourcesElement.appendChild(chip);
+        });
+
+        if (assistantSourcesToggle) {
+            requestAnimationFrame(() => {
+                const firstChip = assistantSourcesElement.querySelector('.message-source-chip');
+                if (!firstChip) {
+                    assistantSourcesToggle.style.display = 'none';
+                    return;
+                }
+
+                const chipRect = firstChip.getBoundingClientRect();
+                const styles = getComputedStyle(assistantSourcesElement);
+                const rowGap = parseFloat(styles.rowGap || styles.gap || 0);
+                const collapsedHeight = chipRect.height + rowGap;
+
+                assistantSourcesElement.style.setProperty('--sources-collapsed-height', `${collapsedHeight}px`);
+
+                const shouldToggle = assistantSourcesElement.scrollHeight > collapsedHeight + 1;
+                assistantSourcesToggle.style.display = shouldToggle ? 'inline-flex' : 'none';
+                assistantSourcesElement.classList.toggle('collapsed', shouldToggle);
+            });
+        }
+    }
+
+    const removeTokenListener = window.llmAPI.onToken((token) => {
+        // If this is the first token, remove thinking indicator and ensure message exists
+        if (currentAssistantMessage === '' && currentReasoning === '') {
+            removeTypingIndicator();
+            if (!assistantMessageElement) {
+                const assistantData = addMessageToChat('assistant', '');
+                assistantMessageElement = assistantData.element;
+                assistantContentElement = assistantData.contentElement;
+            }
+            isTyping = false;
+        }
+
+        currentAssistantMessage += token;
+        if (assistantContentElement) {
+            // Update response text while preserving reasoning and sources
+            let mainTextElem = assistantContentElement.querySelector('.main-response-text');
+            if (!mainTextElem) {
+                mainTextElem = document.createElement('div');
+                mainTextElem.className = 'main-response-text';
+                
+                if (assistantReasoningElement) {
+                    assistantReasoningElement.after(mainTextElem);
+                } else {
+                    assistantContentElement.prepend(mainTextElem);
+                }
+            }
+            assistantMainTextElement = mainTextElem;
+            
+            mainTextElem.innerHTML = formatMessageContent(currentAssistantMessage);
+
+            smoothScrollToBottom();
+        }
+    });
+
+    const removeReasoningListener = typeof window.llmAPI.onReasoning === 'function'
+        ? window.llmAPI.onReasoning((reasoning) => {
+        if (currentAssistantMessage === '' && currentReasoning === '') {
+            removeTypingIndicator();
+            if (!assistantMessageElement) {
+                const assistantData = addMessageToChat('assistant', '');
+                assistantMessageElement = assistantData.element;
+                assistantContentElement = assistantData.contentElement;
+            }
+            isTyping = false;
+        }
+
+        currentReasoning += reasoning;
+        
+        if (!assistantReasoningElement && assistantContentElement) {
+            assistantReasoningElement = document.createElement('div');
+            assistantReasoningElement.className = 'message-reasoning';
+            assistantReasoningElement.innerHTML = '<span class="message-reasoning-title">Tänker...</span><div id="streaming-reasoning"></div>';
+            assistantContentElement.prepend(assistantReasoningElement);
+        }
+
+        if (assistantReasoningElement) {
+            assistantReasoningElement.querySelector('#streaming-reasoning').textContent = currentReasoning;
+            smoothScrollToBottom();
+        }
+    })
+        : () => {};
+
+    const removeToolProgressListener = window.llmAPI.onToolProgress((progress) => {
+        // Ensure message element exists for tool progress/sources
+        if (!assistantMessageElement) {
+            removeTypingIndicator();
+            const assistantData = addMessageToChat('assistant', '');
+            assistantMessageElement = assistantData.element;
+            assistantContentElement = assistantData.contentElement;
+            isTyping = false;
+        }
+
+        // Track sources from brave_search
+        if (progress.tool === 'brave_search' && progress.output) {
+            // Extract URLs: [1] Title\nURL\nDescription
+            const urlRegex = /https?:\/\/[^\s\n]+/g;
+            const matches = progress.output.match(urlRegex);
+            if (matches) {
+                matches.forEach(url => {
+                    // Normalize URL to domain or short form for chips
+                    try {
+                        const domain = new URL(url).hostname.replace('www.', '');
+                        if (!discoveredSources.has(url)) {
+                            discoveredSources.add(url);
+                            queueSource(url, domain);
+                        }
+                    } catch (e) {}
+                });
+            }
+        }
+
+        // Standard tool progress UI
+        if (!assistantMessageElement) {
+            if (progress.success === null) {
+                showToolExecution(progress.tool, progress.params);
+            } else {
+                updateToolExecution(progress.tool, progress.params, progress.output, progress.success, progress.error);
+            }
+        }
+    });
 
     try {
         // Build messages with system prompt
         // Model is controlled server-side via Supabase
-        const systemPrompt = buildSystemPrompt();
+        const systemPrompt = await buildSystemPrompt(); // Note: added await just in case
         const apiMessages = [
             { role: 'system', content: systemPrompt },
             ...conversationHistory
@@ -817,12 +1103,33 @@ async function sendMessage() {
             mode: currentMode
         });
 
+        removeTokenListener();
+        removeReasoningListener();
+        removeToolProgressListener();
         removeTypingIndicator();
 
         if (result.success) {
-            // Add assistant message to history and display
+            // Final update with full message (ensures everything is rendered correctly)
+            if (assistantContentElement) {
+                // Ensure main text element exist
+                let mainTextElem = assistantContentElement.querySelector('.main-response-text');
+                if (!mainTextElem) {
+                    mainTextElem = document.createElement('div');
+                    mainTextElem.className = 'main-response-text';
+                    if (assistantReasoningElement) assistantReasoningElement.after(mainTextElem);
+                    else assistantContentElement.prepend(mainTextElem);
+                }
+                assistantMainTextElement = mainTextElem;
+                
+                mainTextElem.innerHTML = formatMessageContent(result.message);
+                
+                renderSourcesContainer();
+            } else {
+                addMessageToChat('assistant', result.message);
+            }
+
+            // Add assistant message to history
             conversationHistory.push({ role: 'assistant', content: result.message });
-            addMessageToChat('assistant', result.message);
 
             // Auto-save conversation after each response
             saveCurrentConversation();
@@ -830,15 +1137,25 @@ async function sendMessage() {
         } else {
             // Check for insufficient tokens
             if (result.insufficientTokens) {
-                addMessageToChat('assistant', `⚠️ **Otillräckligt med tokens!**\n\nDu har ${result.currentBalance || 0} tokens kvar. Vänta på att din nivå fyller på dina tokens eller uppgradera din plan.`);
+                if (assistantContentElement) {
+                    assistantContentElement.innerHTML = `⚠️ **Otillräckligt med tokens!**\n\nDu har ${result.currentBalance || 0} tokens kvar. Vänta på att din nivå fyller på dina tokens eller uppgradera din plan.`;
+                } else {
+                    addMessageToChat('assistant', `⚠️ **Otillräckligt med tokens!**\n\nDu har ${result.currentBalance || 0} tokens kvar. Vänta på att din nivå fyller på dina tokens eller uppgradera din plan.`);
+                }
             } else {
-                addMessageToChat('assistant', `⚠️ Fel: ${result.error}`);
+                if (assistantContentElement) {
+                    assistantContentElement.innerHTML = `⚠️ Fel: ${result.error}`;
+                } else {
+                    addMessageToChat('assistant', `⚠️ Fel: ${result.error}`);
+                }
             }
         }
     } catch (error) {
+        removeTokenListener();
         removeTypingIndicator();
         addMessageToChat('assistant', `⚠️ Fel: ${error.message}`);
     } finally {
+        isStreaming = false;
         isTyping = false;
         chatSendBtn.disabled = false;
         chatInput.disabled = false;
@@ -1082,6 +1399,7 @@ window.deleteConversation = deleteConversation;
 // History panel elements - using global declarations from top of file
 const historyBtn = document.getElementById('history-btn');
 const historyPanel = document.getElementById('history-panel');
+const historyCloseBtn = document.getElementById('history-close-btn');
 const historyClearAllBtn = document.getElementById('history-clear-all-btn');
 
 // Toggle history panel
@@ -1092,6 +1410,13 @@ if (historyBtn && historyPanel) {
         if (isShowing) {
             renderHistoryList();
         }
+    });
+}
+
+// Close history panel
+if (historyCloseBtn && historyPanel) {
+    historyCloseBtn.addEventListener('click', () => {
+        historyPanel.classList.remove('show');
     });
 }
 
@@ -1163,6 +1488,111 @@ window.snipAPI.onCaptured((data) => {
         addAttachedImage(data.imageData);
     }
 });
+
+// ===== VOICE TRANSCRIPTION (GROQ WHISPER) =====
+
+if (micBtn) {
+    micBtn.addEventListener('click', async () => {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            await startRecording();
+        }
+    });
+}
+
+async function startRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        initialInputText = chatInput.value;
+        lastTranscription = "";
+        isTranscribing = false;
+
+        mediaRecorder.addEventListener('dataavailable', async (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+                // Trigger incremental transcription while recording
+                if (mediaRecorder.state === 'recording') {
+                    transcribeCurrentBuffer();
+                }
+            }
+        });
+
+        mediaRecorder.addEventListener('stop', async () => {
+            // Final transcription pass
+            await transcribeCurrentBuffer(true);
+            
+            micBtn.classList.remove('recording');
+            micBtn.disabled = false;
+            micBtn.title = 'Röstinmatning (Groq Whisper)';
+            isRecording = false;
+
+            // Stop all tracks to release the microphone
+            stream.getTracks().forEach(track => track.stop());
+        });
+
+        // Use a 2.5s timeslice for "incremental" transcription
+        mediaRecorder.start(2500);
+        isRecording = true;
+        micBtn.classList.add('recording');
+        micBtn.title = 'Sluta spela in';
+    } catch (err) {
+        console.error('Microphone access denied:', err);
+        alert('Kunde inte komma åt mikrofonen. Kontrollera systeminställningarna.');
+    }
+}
+
+async function transcribeCurrentBuffer(isFinal = false) {
+    if (audioChunks.length === 0) return;
+    
+    // Prevent overlapping requests for incremental updates, but always allow final pass
+    if (isTranscribing && !isFinal) return;
+    
+    isTranscribing = true;
+    
+    try {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const buffer = new Uint8Array(arrayBuffer);
+
+        // Send to Groq via main process
+        // Passing the last transcription as a prompt ensures continuity and fixes split words
+        const result = await window.llmAPI.transcribe(
+            buffer, 
+            `Previous context: ${lastTranscription}. Swedish and English transcription.`
+        );
+
+        if (result.success && result.text) {
+            const transcript = result.text.trim();
+            if (transcript && transcript !== lastTranscription) {
+                lastTranscription = transcript;
+                const prefix = initialInputText.trim() ? initialInputText.trim() + ' ' : '';
+                chatInput.value = prefix + transcript;
+                
+                // Trigger input event to resize textarea
+                chatInput.dispatchEvent(new Event('input'));
+                
+                // Only scroll/focus if it's the final or if the user isn't typing elsewhere
+                if (isFinal) {
+                    chatInput.focus();
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Transcription error:', err);
+    } finally {
+        isTranscribing = false;
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        micBtn.disabled = true; // Briefly disable while final transcription finishes
+    }
+}
 
 // ===== FILE UPLOAD FUNCTIONALITY =====
 
@@ -1370,10 +1800,11 @@ function addMessageToChatWithImages(role, content, images = []) {
     if (role === 'user') {
         const avatarUrl = currentUserData?.user_metadata?.avatar_url;
         if (avatarUrl) {
-            avatarHtml = `<img src="${avatarUrl}" alt="U" class="avatar-image">`;
+            avatarHtml = `<img src="${avatarUrl}" alt="Avatar" class="avatar-image">`;
             avatarClass = 'avatar-custom';
         } else {
-            avatarHtml = 'U';
+            // Use same initials as top-right profile avatar
+            avatarHtml = currentUserData?.email ? currentUserData.email.charAt(0).toUpperCase() : 'U';
         }
     } else {
         // AI logo
